@@ -1,0 +1,8 @@
+CompileFlags:
+  Add: [-std=c23, -Wall, -Wextra, -Wpedantic, -Werror]
+
+---
+If:
+  PathMatch: tests/.*
+Diagnostics:
+  Suppress: [implicit-int, missing-prototypes, missing-declarations]
