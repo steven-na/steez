@@ -15,7 +15,7 @@ strng_t *strng_new(smrt_arena_t *arena, u64 size) {
     return s;
 }
 
-strng_t *strng_from(smrt_arena_t *arena, char *c) {
+strng_t *strng_from(smrt_arena_t *arena, char const *c) {
     u64 size = strlen(c);
 
     strng_t *s = strng_new(arena, size);
@@ -30,7 +30,38 @@ strng_t *strng_from(smrt_arena_t *arena, char *c) {
     return s;
 }
 
-b32 strng_set(strng_t *string, char *c) {
+strng_t *strng_dup(smrt_arena_t *arena, strng_t const *src) {
+    u64 size = src->len + sizeof(strng_t);
+
+    strng_t *string = smrt_arena_push(arena, size, true);
+
+    if (!string) {
+        return NULL;
+    }
+
+    string->alloc_size = src->len;
+
+    memcpy((u8*)string+STRNG_BASE_POS, (u8*)src+STRNG_BASE_POS, src->len);
+    string->len = src->len;
+
+    return string;
+}
+
+char *strng_str(smrt_arena_t *arena, strng_t const *string) {
+    char *s = SMRTA_ALLOC_ARRAY(arena, char, string->len+1);
+
+    if (!s) {
+        return NULL;
+    } else if (string->len == 0) {
+        return s;
+    }
+
+    memcpy(s, (u8*)string+STRNG_BASE_POS, string->len);
+
+    return s;
+}
+
+b32 strng_set(strng_t *string, char const *c) {
     u64 size = strlen(c);
 
     if (string->alloc_size < size) {
@@ -44,5 +75,6 @@ b32 strng_set(strng_t *string, char *c) {
 }
 
 void strng_clear(strng_t *string) {
+    memset((u8*)string+STRNG_BASE_POS, 0, string->len);
     string->len = 0;
 }

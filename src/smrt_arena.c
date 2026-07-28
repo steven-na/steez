@@ -127,6 +127,10 @@ void smrt_arena_clear(smrt_arena_t *arena, b32 zero_out) {
     smrt_arena__shrink_commit(arena);
 }
 
+void smrt_arena_mark(smrt_arena_t *arena) {
+    arena->mark_pos = arena->pos;
+}
+
 void smrt_arena_destroy(smrt_arena_t *arena) {
     plat_mem_release(arena, arena->reserve_size);
 }
