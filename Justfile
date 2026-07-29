@@ -50,6 +50,14 @@ test-all:
     {{cc}} {{cflags}} {{test_dir}}/*.c {{src_dir}}/*.c -o {{build_dir}}/test -lcriterion {{lflags}}
     ./{{build_dir}}/test
 
+coverage:
+    mkdir -p {{build_dir}}/cov-src {{build_dir}}/cov-tests
+    cd {{build_dir}}/cov-src && {{cc}} {{cflags}} --coverage -c ../../{{src_dir}}/*.c
+    cd {{build_dir}}/cov-tests && {{cc}} {{cflags}} --coverage -c ../../{{test_dir}}/*.c
+    {{cc}} {{cflags}} --coverage {{build_dir}}/cov-src/*.o {{build_dir}}/cov-tests/*.o -o {{build_dir}}/test-coverage -lcriterion {{lflags}}
+    ./{{build_dir}}/test-coverage
+    gcovr --root . --filter '{{src_dir}}/' {{build_dir}}/cov-src --html-details {{build_dir}}/coverage.html --print-summary
+
 clean:
     rm -rf {{build_dir}}
 

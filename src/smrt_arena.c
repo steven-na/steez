@@ -7,6 +7,9 @@
 
 #include <string.h>
 
+
+static __thread smrt_arena_t *_scratch_pool[SCRATCH_POOL_SIZE] = { 0 };
+
 smrt_arena_t *smrt_arena_create(u64 reserve_size, u64 commit_size, b32 auto_decommit) {
     u32 pagesize = plat_get_pagesize();
 
@@ -133,6 +136,52 @@ void smrt_arena_mark(smrt_arena_t *arena) {
 
 void smrt_arena_destroy(smrt_arena_t *arena) {
     plat_mem_release(arena, arena->reserve_size);
+}
+
+smrta_temp_t smrta_temp_start(smrt_arena_t *arena) {
+    return (smrta_temp_t){
+            .arena=arena,
+        .start_pos=arena->pos
+    };
+}
+
+void smrta_temp_end(smrta_temp_t temp) {
+    smrt_arena_pop_to(temp.arena, temp.start_pos);
+}
+
+smrta_temp_t smrta_scratch_start(smrt_arena_t **conflicts, u32 num_conflicts) {
+    i32 candidate_idx = -1;
+
+    for (i32 i = 0; i < SCRATCH_POOL_SIZE; i++) {
+        b32 conflict_found = false;
+
+        for (u32 j = 0; j < num_conflicts; j++) {
+            if (_scratch_pool[i] == conflicts[j]) {
+                conflict_found = true;
+            }
+        }
+
+        if (!conflict_found) {
+            candidate_idx = i;
+            break;
+        }
+    }
+
+    if (candidate_idx != -1) {
+        smrt_arena_t **selected = &_scratch_pool[candidate_idx];
+
+        if (!*selected) {
+            *selected = smrt_arena_create(MiB(64), plat_get_pagesize(), true);
+        }
+
+        return smrta_temp_start(*selected);
+    }
+
+    return (smrta_temp_t){ 0 };
+}
+
+void smrta_scratch_end(smrta_temp_t scratch) {
+    smrta_temp_end(scratch);
 }
 
 #if defined(_WIN32)
