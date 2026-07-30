@@ -9,7 +9,7 @@
 #include <criterion/internal/test.h>
 
 Test(smrt_arena, create_arena) {
-    smrt_arena_t *arena = smrt_arena_create(KiB(1), KiB(4), false);
+    smrt_arena_t *arena = smrt_arena_create(KiB(1), plat_get_pagesize(), false);
 
     cr_expect(arena->reserve_size == MAX(KiB(1), plat_get_pagesize()));
     cr_expect(arena->pos == SMRT_ARENA_BASE_POS);

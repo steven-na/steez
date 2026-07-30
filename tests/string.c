@@ -2,11 +2,11 @@
 
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <criterion/criterion.h>
 #include <criterion/internal/assert.h>
 #include <criterion/internal/test.h>
-#include <string.h>
 
 Test(string, create_string) {
     smrt_arena_t *arena = smrt_arena_create(KiB(4), KiB(4), false);
@@ -64,7 +64,6 @@ Test(string, string_duplicate) {
 
 
     strng_t *dup = strng_dup(arena, orig);
-    printf("%.*s\n", STRNG_FMT(dup));
 
     cr_expect(dup->alloc_size == 26);
     cr_expect(dup->len == 26);
