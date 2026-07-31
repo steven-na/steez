@@ -7,6 +7,7 @@
 
 typedef struct {
     u64    sample_count;
+    u8    *samples;
 } wav_data_t;
 
 // [Master RIFF chunk]
@@ -35,12 +36,12 @@ typedef struct {
     u16    audio_format;
     u16    num_channels;
     u32     sample_rate;
-    u32   byter_per_sec;
+    u32   bytes_per_sec;
     u16 bytes_per_block;
     u16 bits_per_sample;
 } wav_fmt_chunk_t;
 #pragma pack(pop)
 
-     wav_data_t     *load_wav_file(smrt_arena_t *arena, char *filename, wav_master_chunk_t *master_o, wav_fmt_chunk_t *format_o);
-           void     write_wav_file(char *filename, wav_fmt_chunk_t *header_i, wav_data_t *data_i);
-wav_fmt_chunk_t make_wav_fmt_chunk(u32 num_channels, u32 sample_rate, u16 bits_per_sample, wav_data_t *data_i);
+     wav_data_t      load_wav_file(smrt_arena_t *arena, char *filename, wav_master_chunk_t *master_o, wav_fmt_chunk_t *format_o);
+            b32     write_wav_file(char *filename, wav_fmt_chunk_t *fmt_chunk_i, wav_data_t data_i);
+wav_fmt_chunk_t make_wav_fmt_chunk(u32 num_channels, u32 sample_rate, u16 bits_per_sample, wav_data_t data_i);
