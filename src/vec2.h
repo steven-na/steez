@@ -7,12 +7,12 @@
 
 typedef union {
     struct { f64 x, y; };
-    f64 d[2];
+       f64          d[2];
 } vec2d_t;
 
 typedef struct {
-    f64 *xs;
-    f64 *ys;
+    f64 * xs;
+    f64 * ys;
     u64 size;
 } vec2d_soa_t;
 

@@ -50,10 +50,10 @@ wav_data_t load_wav_file(smrt_arena_t *arena, FILE *wav_file, wav_master_chunk_t
     u32 sampled_data_size;
     fread(&sampled_data_size, 4, 1, wav_file);
 
-    data.samples = smrt_arena_push(arena, sizeof(wav_data_t) + sampled_data_size, true);
+    data.samples = smrt_arena_push(arena, sampled_data_size, true);
     if (!data.samples) return data;
 
-    fread((u8*)data.samples+WAV_DATA_BASE_POS, sampled_data_size, 1, wav_file);
+    fread((u8*)data.samples, sampled_data_size, 1, wav_file);
     data.sample_count = sampled_data_size / ((format_o->bits_per_sample / 8) * format_o->num_channels);
 
     return data;

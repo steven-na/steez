@@ -5,26 +5,23 @@
 #define SMRT_ARENA_BASE_POS (sizeof(smrt_arena_t))
 
 typedef struct {
-    u64 reserve_size;
-    u64 commit_size;
-
-    u64 mark_pos;
-
-    u64 pos;
-    u64 commit_pos;
-
+    u64  reserve_size;
+    u64   commit_size;
+    u64      mark_pos;
+    u64           pos;
+    u64    commit_pos;
     b32 auto_decommit;
 } smrt_arena_t;
 
-smrt_arena_t     *smrt_arena_create(u64 reserve_size, u64 commit_size, b32 auto_decommit);
-        void       *smrt_arena_push(smrt_arena_t *arena, u64 alloc_amount, b32 zero_out);
+smrt_arena_t *    smrt_arena_create(u64 reserve_size, u64 commit_size, b32 auto_decommit);
+
+        void *      smrt_arena_push(smrt_arena_t *arena, u64 alloc_amount, b32 zero_out);
         void         smrt_arena_pop(smrt_arena_t *arena, u64 pop_amount);
         void      smrt_arena_pop_to(smrt_arena_t *arena, u64 location);
         void       smrt_arena_clear(smrt_arena_t *arena, b32 zero_out);
         void     smrt_arena_destroy(smrt_arena_t *arena);
-
         void        smrt_arena_mark(smrt_arena_t *arena);
-        void  *smrt_arena_mark_push(smrt_arena_t *arena, u64 alloc_amount, b32 zero_out);
+        void * smrt_arena_mark_push(smrt_arena_t *arena, u64 alloc_amount, b32 zero_out);
          b32 smrt_arena_pop_to_mark(smrt_arena_t *arena);
 
 #define SMRTA_ALLOC_ARRAY(arena, T, n) (T*)smrt_arena_push(arena, sizeof(T) * (n), true)
@@ -40,7 +37,13 @@ smrta_temp_t smrta_temp_start(smrt_arena_t *arena);
 smrta_temp_t smrta_scratch_start(smrt_arena_t **conflicts, u32 num_conflicts);
         void   smrta_scratch_end(smrta_temp_t temp);
 
+#ifndef SCRATCH_POOL_SIZE
 #define SCRATCH_POOL_SIZE 2
+#endif
+
+#ifndef SMRTA_SCRATCH_RESERVE_SIZE
+#define SMRTA_SCRATCH_RESERVE_SIZE MiB(64)
+#endif
 
 #define TEMP_ARENA_PUSH(temp, T) (T*)smrt_arena_push(temp.arena, sizeof(T), true)
 #define TEMP_ARENA_PUSH_ARRAY(temp, T, n) (T*)smrt_arena_push(temp.arena, sizeof(T) * (n), true)

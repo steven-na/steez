@@ -5,11 +5,9 @@
 
 #include <stdio.h>
 
-#define WAV_DATA_BASE_POS sizeof(wav_data_t)
-
 typedef struct {
     u64    sample_count;
-    u8    *samples;
+     u8 *       samples;
 } wav_data_t;
 
 // [Master RIFF chunk]
@@ -44,6 +42,18 @@ typedef struct {
 } wav_fmt_chunk_t;
 #pragma pack(pop)
 
-     wav_data_t      load_wav_file(smrt_arena_t *arena, FILE *wav_file, wav_master_chunk_t *master_o, wav_fmt_chunk_t *format_o);
-            b32     write_wav_file(FILE *wav_file, wav_fmt_chunk_t *fmt_chunk_i, wav_data_t data_i);
-wav_fmt_chunk_t make_wav_fmt_chunk(u32 num_channels, u32 sample_rate, u16 bits_per_sample);
+/// Load WAV data from wav_file. Data will be allocated on arena
+wav_data_t load_wav_file(smrt_arena_t *   arena ,
+                                 FILE *wav_file ,
+                   wav_master_chunk_t *master_o ,
+                      wav_fmt_chunk_t *format_o);
+
+/// Write WAV headers and data to wav_file.
+b32 write_wav_file(FILE *   wav_file ,
+        wav_fmt_chunk_t *fmt_chunk_i ,
+             wav_data_t       data_i);
+
+/// Generate WAV "fmt " chunk for unsigned 8-bit PCM data ready to be written to a file.
+wav_fmt_chunk_t make_wav_fmt_chunk(u32    num_channels ,
+                                   u32     sample_rate ,
+                                   u16 bits_per_sample);

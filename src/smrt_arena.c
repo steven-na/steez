@@ -171,7 +171,7 @@ smrta_temp_t smrta_scratch_start(smrt_arena_t **conflicts, u32 num_conflicts) {
         smrt_arena_t **selected = &_scratch_pool[candidate_idx];
 
         if (!*selected) {
-            *selected = smrt_arena_create(MiB(64), plat_get_pagesize(), true);
+            *selected = smrt_arena_create(SMRTA_SCRATCH_RESERVE_SIZE, plat_get_pagesize(), true);
         }
 
         return smrta_temp_start(*selected);

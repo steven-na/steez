@@ -51,7 +51,7 @@ Test(wav, read_sample_data_matches_source) {
     fclose(wav_file);
 
     i16 expected[8] = { 0, 2147, 4242, 6291, 8185, 9935, 11580, 12979 };
-    i16 *samples = (i16*)((u8*)data.samples + WAV_DATA_BASE_POS);
+    i16 *samples = (i16*)((u8*)data.samples);
 
     for (int i = 0; i < 8; i++) {
         cr_expect_eq(samples[i], expected[i]);
@@ -93,7 +93,7 @@ Test(wav, read_stereo_16bit) {
     cr_expect(fmtchunk.bits_per_sample == 16);
     cr_expect(data.sample_count == 5);
 
-    i16 *samples = (i16*)((u8*)data.samples + WAV_DATA_BASE_POS);
+    i16 *samples = (i16*)((u8*)data.samples);
     cr_expect_eq(samples[0], 0);
     cr_expect_eq(samples[1], 0);
     cr_expect_eq(samples[2], 100);
@@ -119,7 +119,7 @@ Test(wav, read_mono_8bit) {
     cr_expect(fmtchunk.bits_per_sample == 8);
     cr_expect(data.sample_count == 6);
 
-    u8 *samples = (u8*)data.samples + WAV_DATA_BASE_POS;
+    u8 *samples = (u8*)data.samples;
     u8 expected[6] = { 0, 64, 128, 192, 255, 32 };
     for (int i = 0; i < 6; i++) {
         cr_expect_eq(samples[i], expected[i]);
@@ -286,7 +286,7 @@ Test(wav, write_sine, .init = write_sine_setup, .fini = write_sine_teardown) {
     cr_assert_not_null(read_data.samples);
     cr_expect_eq(read_data.sample_count, sample_count);
 
-    u8 *read_samples = (u8*)read_data.samples + WAV_DATA_BASE_POS;
+    u8 *read_samples = (u8*)read_data.samples;
     for (u64 i = 0; i < sample_count; i++) {
         cr_expect_eq(read_samples[i], data.samples[i]);
     }
