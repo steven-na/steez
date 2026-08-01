@@ -4,7 +4,7 @@ test_dir := "tests"
 build_dir := "build"
 cc := "cc"
 cflags := "-Wall -Wextra -Wpedantic -Werror -std=c23 -fPIC"
-lflags := ""
+lflags := "-lm"
 prefix := "/usr/local"
 
 default:

@@ -2,11 +2,16 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <math.h> // IWYU pragma: keep
 
 #define KiB(n) ((u64)n<<10)
 #define MiB(n) ((u64)n<<20)
 #define GiB(n) ((u64)n<<30)
 
+#define PI 3.14159265358979323846264338327950
+#define F64_EPSILON = 1e-9
+
+#define F64_EQ(x, y, eps) (fabs((x) - (y)) <= (eps))
 #define MAX(n, m) ((n > m) ? (n) : (m))
 #define MIN(n, m) ((n < m) ? (n) : (m))
 #define ALIGN_UP_POW2(n, m) (((u64)(n) + (u64)(m) - 1) & (~((u64)(m) - 1)))
