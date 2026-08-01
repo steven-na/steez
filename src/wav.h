@@ -3,6 +3,8 @@
 #include "common.h"
 #include "smrt_arena.h"
 
+#include <stdio.h>
+
 #define WAV_DATA_BASE_POS sizeof(wav_data_t)
 
 typedef struct {
@@ -42,6 +44,6 @@ typedef struct {
 } wav_fmt_chunk_t;
 #pragma pack(pop)
 
-     wav_data_t      load_wav_file(smrt_arena_t *arena, char *filename, wav_master_chunk_t *master_o, wav_fmt_chunk_t *format_o);
-            b32     write_wav_file(char *filename, wav_fmt_chunk_t *fmt_chunk_i, wav_data_t data_i);
-wav_fmt_chunk_t make_wav_fmt_chunk(u32 num_channels, u32 sample_rate, u16 bits_per_sample, wav_data_t data_i);
+     wav_data_t      load_wav_file(smrt_arena_t *arena, FILE *wav_file, wav_master_chunk_t *master_o, wav_fmt_chunk_t *format_o);
+            b32     write_wav_file(FILE *wav_file, wav_fmt_chunk_t *fmt_chunk_i, wav_data_t data_i);
+wav_fmt_chunk_t make_wav_fmt_chunk(u32 num_channels, u32 sample_rate, u16 bits_per_sample);
