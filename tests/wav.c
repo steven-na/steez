@@ -235,6 +235,51 @@ void write_sine_teardown(void) {
     close(write_sine_fd);
 }
 
+static char non_pcm_path[] = "/tmp/steez_testwav_nonpcm_XXXXXX";
+static int non_pcm_fd;
+
+void non_pcm_setup(void) {
+    non_pcm_fd = mkstemp(non_pcm_path);
+    cr_assert_geq(non_pcm_fd, 0, "mkstemp failed");
+}
+
+void non_pcm_teardown(void) {
+    unlink(non_pcm_path);
+    close(non_pcm_fd);
+}
+
+Test(wav, read_rejects_non_pcm_format, .init = non_pcm_setup, .fini = non_pcm_teardown) {
+    FILE *wav_file = fdopen(non_pcm_fd, "wb");
+    cr_assert_not_null(wav_file);
+
+    smrt_arena_t *arena = smrt_arena_create(KiB(64), KiB(4), false);
+
+    u8 sample = 128;
+    wav_data_t data = { .samples = &sample, .sample_count = 1 };
+
+    wav_fmt_chunk_t fmtchunk = make_wav_fmt_chunk(1, 8000, 8);
+    fmtchunk.audio_format = 3; // IEEE 754 float, not PCM
+
+    cr_assert(write_wav_file(wav_file, &fmtchunk, data));
+
+    fclose(wav_file);
+
+    FILE *readback_file = fopen(non_pcm_path, "rb");
+    cr_assert_not_null(readback_file);
+
+    wav_master_chunk_t mchunk;
+    wav_fmt_chunk_t  read_fmtchunk;
+
+    wav_data_t read_data = load_wav_file(arena, readback_file, &mchunk, &read_fmtchunk);
+
+    fclose(readback_file);
+
+    cr_expect_eq(read_fmtchunk.audio_format, 3);
+    cr_expect_eq(read_data.samples, NULL);
+
+    smrt_arena_destroy(arena);
+}
+
 
 Test(wav, write_sine, .init = write_sine_setup, .fini = write_sine_teardown) {
     FILE *wav_file = fdopen(write_sine_fd, "wb");

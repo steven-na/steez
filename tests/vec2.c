@@ -128,3 +128,70 @@ Test(vec2d, vec_dot) {
 
     cr_expect(F64_EQ(opd, expected, 1e-9));
 }
+
+Test(vec2d_soa, add_n) {
+    vec2d_soa_t a = { .xs = (f64[]){1.0, 2.0, 3.0}, .ys = (f64[]){4.0, 5.0, 6.0}, .size = 3 };
+    vec2d_soa_t b = { .xs = (f64[]){10.0, 20.0, 30.0}, .ys = (f64[]){40.0, 50.0, 60.0}, .size = 3 };
+
+    f64 out_x[3], out_y[3];
+    vec2d_soa_t out = { .xs = out_x, .ys = out_y, .size = 3 };
+
+    vec2d_soa_add_n(&out, &a, &b);
+
+    for (size_t i = 0; i < 3; i++) {
+        cr_expect(F64_EQ(out.xs[i], a.xs[i] + b.xs[i], 1e-9));
+        cr_expect(F64_EQ(out.ys[i], a.ys[i] + b.ys[i], 1e-9));
+    }
+}
+
+Test(vec2d_soa, sub_n) {
+    vec2d_soa_t lhs = { .xs = (f64[]){10.0, 20.0, 30.0}, .ys = (f64[]){40.0, 50.0, 60.0}, .size = 3 };
+    vec2d_soa_t rhs = { .xs = (f64[]){1.0, 2.0, 3.0}, .ys = (f64[]){4.0, 5.0, 6.0}, .size = 3 };
+
+    f64 out_x[3], out_y[3];
+    vec2d_soa_t out = { .xs = out_x, .ys = out_y, .size = 3 };
+
+    vec2d_soa_sub_n(&out, &lhs, &rhs);
+
+    for (size_t i = 0; i < 3; i++) {
+        cr_expect(F64_EQ(out.xs[i], lhs.xs[i] - rhs.xs[i], 1e-9));
+        cr_expect(F64_EQ(out.ys[i], lhs.ys[i] - rhs.ys[i], 1e-9));
+    }
+}
+
+Test(vec2d_soa, scale_n) {
+    vec2d_soa_t in = { .xs = (f64[]){1.0, 2.0, 3.0}, .ys = (f64[]){4.0, 5.0, 6.0}, .size = 3 };
+
+    f64 out_x[3], out_y[3];
+    vec2d_soa_t out = { .xs = out_x, .ys = out_y, .size = 3 };
+
+    vec2d_soa_scale_n(&out, &in, 10.0);
+
+    for (size_t i = 0; i < 3; i++) {
+        cr_expect(F64_EQ(out.xs[i], in.xs[i] * 10.0, 1e-9));
+        cr_expect(F64_EQ(out.ys[i], in.ys[i] * 10.0, 1e-9));
+    }
+}
+
+Test(vec2d_soa, norm_n_handles_zero_and_nonzero) {
+    vec2d_soa_t in = { .xs = (f64[]){3.0, 0.0}, .ys = (f64[]){4.0, 0.0}, .size = 2 };
+
+    f64 out_x[2], out_y[2];
+    vec2d_soa_t out = { .xs = out_x, .ys = out_y, .size = 2 };
+
+    vec2d_soa_norm_n(&out, &in);
+
+    cr_expect(F64_EQ(out.xs[0], 0.6, 1e-9));
+    cr_expect(F64_EQ(out.ys[0], 0.8, 1e-9));
+    cr_expect(F64_EQ(out.xs[1], 0.0, 1e-9));
+    cr_expect(F64_EQ(out.ys[1], 0.0, 1e-9));
+}
+
+Test(vec2d_soa, average) {
+    vec2d_soa_t vs = { .xs = (f64[]){2.0, 4.0, 6.0}, .ys = (f64[]){10.0, 20.0, 30.0}, .size = 3 };
+
+    vec2d_t avg = vec2d_soa_average(&vs);
+
+    cr_expect(F64_EQ(avg.x, 4.0, 1e-9));
+    cr_expect(F64_EQ(avg.y, 20.0, 1e-9));
+}

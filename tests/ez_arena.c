@@ -107,3 +107,51 @@ Test(ez_arena, alloc_clear_dont_zero_arena) {
 
     ez_arena_destroy(arena);
 }
+
+Test(ez_arena, create_without_zeroing_is_usable) {
+    ez_arena_t *arena = ez_arena_create(sizeof(uint32_t), false);
+
+    uint32_t *i = ez_arena_alloc(arena, sizeof(uint32_t));
+    *i = UINT32_MAX;
+
+    cr_assert_eq(*i, UINT32_MAX);
+
+    ez_arena_destroy(arena);
+}
+
+Test(ez_arena, create_fails_when_malloc_cannot_satisfy_size) {
+    ez_arena_t *arena = ez_arena_create(UINT64_MAX - sizeof(ez_arena_t), true);
+
+    cr_expect_eq(arena, NULL);
+}
+
+Test(ez_arena, alloc_nz_arena) {
+    ez_arena_t *arena = ez_arena_create(sizeof(uint32_t), true);
+
+    uint32_t *i = ez_arena_alloc_nz(arena, sizeof(uint32_t));
+    *i = UINT32_MAX;
+
+    cr_assert_eq(*i, UINT32_MAX);
+
+    ez_arena_destroy(arena);
+}
+
+Test(ez_arena, alloc_exceeds_size_returns_null) {
+    ez_arena_t *arena = ez_arena_create(sizeof(uint32_t), true);
+
+    void *p = ez_arena_alloc(arena, KiB(1));
+
+    cr_expect_eq(p, NULL);
+
+    ez_arena_destroy(arena);
+}
+
+Test(ez_arena, alloc_nz_exceeds_size_returns_null) {
+    ez_arena_t *arena = ez_arena_create(sizeof(uint32_t), true);
+
+    void *p = ez_arena_alloc_nz(arena, KiB(1));
+
+    cr_expect_eq(p, NULL);
+
+    ez_arena_destroy(arena);
+}

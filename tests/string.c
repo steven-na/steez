@@ -86,3 +86,86 @@ Test(string, format_and_copy_string) {
 
     smrt_arena_destroy(arena);
 }
+
+Test(string, clear_string) {
+    smrt_arena_t *arena = smrt_arena_create(KiB(4), KiB(4), false);
+    strng_t *s = strng_from(arena, "Hello, world.");
+
+    strng_clear(s);
+
+    cr_expect_eq(s->len, 0);
+
+    smrt_arena_destroy(arena);
+}
+
+Test(string, set_string_too_large_fails) {
+    smrt_arena_t *arena = smrt_arena_create(KiB(4), KiB(4), false);
+    strng_t *s = strng_new(arena, 4);
+
+    b32 ok = strng_set(s, "way too long for a 4 byte buffer");
+
+    cr_expect_eq(ok, false);
+    cr_expect_eq(s->len, 0);
+
+    smrt_arena_destroy(arena);
+}
+
+Test(string, to_cstring_of_empty_string) {
+    smrt_arena_t *arena = smrt_arena_create(KiB(4), KiB(4), false);
+    strng_t *s = strng_new(arena, 10);
+
+    char *c = strng_str(arena, s);
+
+    cr_assert_not_null(c);
+    cr_expect(strlen(c) == 0);
+
+    smrt_arena_destroy(arena);
+}
+
+Test(string, new_string_returns_null_when_arena_exhausted) {
+    smrt_arena_t *arena = smrt_arena_create(1, 1, false);
+
+    strng_t *s = strng_new(arena, MiB(1));
+
+    cr_expect_eq(s, NULL);
+
+    smrt_arena_destroy(arena);
+}
+
+Test(string, from_cstring_returns_null_when_arena_exhausted) {
+    smrt_arena_t *arena = smrt_arena_create(1, 1, false);
+
+    char big[KiB(8)+1];
+    memset(big, 'a', sizeof(big)-1);
+    big[sizeof(big)-1] = '\0';
+
+    strng_t *s = strng_from(arena, big);
+
+    cr_expect_eq(s, NULL);
+
+    smrt_arena_destroy(arena);
+}
+
+Test(string, duplicate_returns_null_when_arena_exhausted) {
+    smrt_arena_t *arena = smrt_arena_create(1, 1, false);
+
+    strng_t fake_src = { .alloc_size = KiB(8), .len = KiB(8) };
+
+    strng_t *s = strng_dup(arena, &fake_src);
+
+    cr_expect_eq(s, NULL);
+
+    smrt_arena_destroy(arena);
+}
+
+Test(string, to_cstring_returns_null_when_arena_exhausted) {
+    smrt_arena_t *arena = smrt_arena_create(1, 1, false);
+
+    strng_t fake_str = { .alloc_size = KiB(8), .len = KiB(8) };
+
+    char *c = strng_str(arena, &fake_str);
+
+    cr_expect_eq(c, NULL);
+
+    smrt_arena_destroy(arena);
+}
