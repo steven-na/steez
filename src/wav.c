@@ -94,3 +94,68 @@ wav_fmt_chunk_t make_wav_fmt_chunk(u32 num_channels, u32 sample_rate, u16 bits_p
 
     return o;
 }
+
+f64 *read_8bps_data(smrt_arena_t *arena, wav_data_t data) {
+    f64 *vs = SMRTA_ALLOC_ARRAY(arena, f64, data.sample_count);
+    if (!vs) return NULL;
+
+    for (u64 i = 0; i < data.sample_count; i++) {
+        u8 sample = data.samples[i];
+        f64 amplitude = (f64)(sample - 128) / (f64)(0b1<<7);
+
+        vs[i] = amplitude;
+    }
+
+    return vs;
+}
+
+f64 *read_16bps_data(smrt_arena_t *arena, wav_data_t data) {
+    f64 *vs = SMRTA_ALLOC_ARRAY(arena, f64, data.sample_count);
+    if (!vs) return NULL;
+
+    for (u64 i = 0; i < data.sample_count; i++) {
+        u8  low = data.samples[ i*2]   ;
+        u8 high = data.samples[(i*2)+1];
+        i16 intermediate = low | (high << 8);
+        f64 amplitude = (f64)intermediate / (f64)(0b1<<15);
+
+        vs[i] = amplitude;
+    }
+
+    return vs;
+}
+
+f64 *read_24bps_data(smrt_arena_t *arena, wav_data_t data) {
+    f64 *vs = SMRTA_ALLOC_ARRAY(arena, f64, data.sample_count);
+    if (!vs) return NULL;
+
+    for (u64 i = 0; i < data.sample_count; i++) {
+        u8  low = data.samples[ i*3]   ;
+        u8  mid = data.samples[(i*3)+1];
+        u8 high = data.samples[(i*3)+2];
+        i32 intermediate = low | (mid << 8) | (high << 16);
+        if (high & 0b10000000) intermediate |= 0xFF000000;
+        f64 amplitude = (f64)intermediate / ((f64)(0b1 << 23));
+
+        vs[i] = amplitude;
+    }
+
+    return vs;
+}
+
+f64 *read_32bps_float_data(smrt_arena_t *arena, wav_data_t data) {
+    f64 *vs = SMRTA_ALLOC_ARRAY(arena, f64, data.sample_count);
+    if (!vs) return NULL;
+
+    for (u64 i = 0; i < data.sample_count; i++) {
+        u8   one = data.samples[ i*4   ];
+        u8   two = data.samples[(i*4)+1];
+        u8 three = data.samples[(i*4)+2];
+        u8  four = data.samples[(i*4)+3];
+        u32 intermediate = one | two << 8 | three << 16 | four << 24;
+
+        memcpy(&vs[i], &intermediate, sizeof(u32));
+    }
+
+    return vs;
+}
