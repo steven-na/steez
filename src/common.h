@@ -8,8 +8,13 @@
 #define MiB(n) ((u64)n<<20)
 #define GiB(n) ((u64)n<<30)
 
+#ifndef PI
 #define PI 3.14159265358979323846264338327950
+#endif // !PI
+
+#ifndef F64_EPSILON
 #define F64_EPSILON = 1e-9
+#endif // !F64_EPSILON
 
 #define F64_EQ(x, y, eps) (fabs((x) - (y)) <= (eps))
 #define MAX(n, m) ((n > m) ? (n) : (m))
