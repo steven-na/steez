@@ -5,3 +5,4 @@ build/
 *.out
 compile_commands.json
 .cache/
+src/version_gen.h

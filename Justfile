@@ -13,23 +13,26 @@ default:
 
 build: build-static build-shared
 
-build-static:
+gen-version type="release":
+    ./scripts/gen-version.sh {{type}}
+
+build-static: (gen-version "release")
     mkdir -p {{build_dir}}
     cd {{build_dir}} && {{cc}} {{cflags}} {{extra_cflags}} -c ../{{src_dir}}/*.c
     ar rcs {{build_dir}}/lib{{lib}}.a {{build_dir}}/*.o
 
-build-shared:
+build-shared: (gen-version "release")
     mkdir -p {{build_dir}}
     cd {{build_dir}} && {{cc}} {{cflags}} {{extra_cflags}} -c ../{{src_dir}}/*.c
     {{cc}} -shared -o {{build_dir}}/lib{{lib}}.so {{build_dir}}/*.o {{lflags}}
 
-build-release:
+build-release: (gen-version "release")
     mkdir -p {{build_dir}}
     cd {{build_dir}} && {{cc}} {{cflags}} {{extra_cflags}} -O3 -DNDEBUG -c ../{{src_dir}}/*.c
     ar rcs {{build_dir}}/lib{{lib}}-release.a {{build_dir}}/*.o
     {{cc}} -shared -o {{build_dir}}/lib{{lib}}-release.so {{build_dir}}/*.o {{lflags}}
 
-build-debug:
+build-debug: (gen-version "debug")
     mkdir -p {{build_dir}}
     cd {{build_dir}} && {{cc}} {{cflags}} {{extra_cflags}} -g -O0 -fsanitize=address,undefined -fno-omit-frame-pointer -c ../{{src_dir}}/*.c
     ar rcs {{build_dir}}/lib{{lib}}-debug.a {{build_dir}}/*.o
@@ -76,12 +79,12 @@ install-vendor dir: build
 uninstall-vendor dir:
     rm -rf {{dir}}/vendor/{{lib}}
 
-test-all:
+test-all: (gen-version "debug")
     mkdir -p {{build_dir}}
     {{cc}} {{cflags}} {{extra_cflags}} {{test_dir}}/*.c {{src_dir}}/*.c -o {{build_dir}}/test -lcriterion {{lflags}}
     ./{{build_dir}}/test
 
-coverage:
+coverage: (gen-version "debug")
     mkdir -p {{build_dir}}/cov-src {{build_dir}}/cov-tests
     cd {{build_dir}}/cov-src && {{cc}} {{cflags}} --coverage -c ../../{{src_dir}}/*.c
     cd {{build_dir}}/cov-tests && {{cc}} {{cflags}} --coverage -c ../../{{test_dir}}/*.c
