@@ -2,6 +2,7 @@
 #include "smrt_arena.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -39,9 +40,12 @@ wav_data_t load_wav_file(smrt_arena_t *arena, FILE *wav_file, wav_master_chunk_t
     if (seek_to_chunk(wav_file, "fmt ") == false) return data;
     fread(format_o, sizeof(wav_fmt_chunk_t), 1, wav_file);
 
-    if (format_o->audio_format != 1) {
-        perror("Attempted to read non pcm integer wave file.");
-        return data;
+    {
+        u16 f = format_o->audio_format;
+        if (f != 1 && f != 3) {
+            perror("Attempted to read non pcm integer wave file.");
+            return data;
+        }
     }
 
     if (seek_to_chunk(wav_file, "data") == false) return data;
@@ -95,12 +99,94 @@ wav_fmt_chunk_t make_wav_fmt_chunk(u32 num_channels, u32 sample_rate, u16 bits_p
     return o;
 }
 
-f64 *read_8bps_data(smrt_arena_t *arena, wav_data_t data) {
+u64 wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o, u16 *channel_count_o) {
+    smrta_temp_t scratch = smrta_scratch_start(NULL, 0);
+
+    wav_master_chunk_t m;
+    wav_fmt_chunk_t    f;
+
+    smrt_arena_mark(arena);
+
+    wav_data_t data = load_wav_file(scratch.arena,
+                                    wav,
+                                    &m,
+                                    &f);
+
+    if (!data.samples) {
+        perror("Failed to load data.");
+        goto failed;
+    }
+
+    *samples_o = SMRTA_ALLOC_ARRAY(arena, f64*, f.num_channels);
+    *channel_count_o = f.num_channels;
+
+
+    for (u16 c = 0; c < f.num_channels; c++) {
+        f64 *d;
+        switch (f.audio_format) {
+            case 1:
+                switch (f.bits_per_sample) {
+                    case 8:
+                        d = read_8bps_data(arena,
+                                           data,
+                                           f.num_channels,
+                                           c);
+                        break;
+                    case 16:
+                        d = read_16bps_data(arena,
+                                            data,
+                                            f.num_channels,
+                                            c);
+                        break;
+                    case 24:
+                        d = read_24bps_data(arena,
+                                            data,
+                                            f.num_channels,
+                                            c);
+                        break;
+                    default:
+                        perror("Only PCM integer 8,16,24 bits can be read.");
+                        goto failed;
+                }
+                break;
+            case 3:
+                switch (f.bits_per_sample) {
+                    case 32:
+                        d = read_32bps_float_data(arena,
+                                                  data,
+                                                  f.num_channels,
+                                                  c);
+                        break;
+                    default:
+                        perror("Only 32 bits float can be read.");
+                        goto failed;
+                }
+                break;
+            default:
+                perror("Expected audio_format=1|3");
+                goto failed;
+        }
+        (*samples_o)[c] = d;
+    }
+
+    smrta_scratch_end(scratch);
+    return data.sample_count;
+
+failed:
+    smrta_scratch_end(scratch);
+    smrt_arena_pop_to_mark(arena);
+    *samples_o = NULL;
+    return 0;
+}
+
+f64 *read_8bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel) {
+    assert(num_channels != 0 && "num_channels must be >0");
+
     f64 *vs = SMRTA_ALLOC_ARRAY(arena, f64, data.sample_count);
     if (!vs) return NULL;
 
     for (u64 i = 0; i < data.sample_count; i++) {
-        u8 sample = data.samples[i];
+        u8 sample = data.samples[(i*num_channels)+  channel];
         f64 amplitude = (f64)(sample - 128) / (f64)(0b1<<7);
 
         vs[i] = amplitude;
@@ -109,13 +195,15 @@ f64 *read_8bps_data(smrt_arena_t *arena, wav_data_t data) {
     return vs;
 }
 
-f64 *read_16bps_data(smrt_arena_t *arena, wav_data_t data) {
+f64 *read_16bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel) {
+    assert(num_channels != 0 && "num_channels must be >0");
+
     f64 *vs = SMRTA_ALLOC_ARRAY(arena, f64, data.sample_count);
     if (!vs) return NULL;
 
     for (u64 i = 0; i < data.sample_count; i++) {
-        u8  low = data.samples[ i*2]   ;
-        u8 high = data.samples[(i*2)+1];
+        u8  low = data.samples[(i*2*num_channels)+  channel*2];
+        u8 high = data.samples[(i*2*num_channels)+1+channel*2];
         i16 intermediate = low | (high << 8);
         f64 amplitude = (f64)intermediate / (f64)(0b1<<15);
 
@@ -125,14 +213,16 @@ f64 *read_16bps_data(smrt_arena_t *arena, wav_data_t data) {
     return vs;
 }
 
-f64 *read_24bps_data(smrt_arena_t *arena, wav_data_t data) {
+f64 *read_24bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel) {
+    assert(num_channels != 0 && "num_channels must be >0");
+
     f64 *vs = SMRTA_ALLOC_ARRAY(arena, f64, data.sample_count);
     if (!vs) return NULL;
 
     for (u64 i = 0; i < data.sample_count; i++) {
-        u8  low = data.samples[ i*3]   ;
-        u8  mid = data.samples[(i*3)+1];
-        u8 high = data.samples[(i*3)+2];
+        u8  low = data.samples[(i*3*num_channels)+  channel*3];
+        u8  mid = data.samples[(i*3*num_channels)+1+channel*3];
+        u8 high = data.samples[(i*3*num_channels)+2+channel*3];
         i32 intermediate = low | (mid << 8) | (high << 16);
         if (high & 0b10000000) intermediate |= 0xFF000000;
         f64 amplitude = (f64)intermediate / ((f64)(0b1 << 23));
@@ -143,15 +233,17 @@ f64 *read_24bps_data(smrt_arena_t *arena, wav_data_t data) {
     return vs;
 }
 
-f64 *read_32bps_float_data(smrt_arena_t *arena, wav_data_t data) {
+f64 *read_32bps_float_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel) {
+    assert(num_channels != 0 && "num_channels must be >0");
+
     f64 *vs = SMRTA_ALLOC_ARRAY(arena, f64, data.sample_count);
     if (!vs) return NULL;
 
     for (u64 i = 0; i < data.sample_count; i++) {
-        u8   one = data.samples[ i*4   ];
-        u8   two = data.samples[(i*4)+1];
-        u8 three = data.samples[(i*4)+2];
-        u8  four = data.samples[(i*4)+3];
+        u8   one = data.samples[(i*4*num_channels)+  channel*4];
+        u8   two = data.samples[(i*4*num_channels)+1+channel*4];
+        u8 three = data.samples[(i*4*num_channels)+2+channel*4];
+        u8  four = data.samples[(i*4*num_channels)+3+channel*4];
         u32 intermediate = one | two << 8 | three << 16 | four << 24;
 
         memcpy(&vs[i], &intermediate, sizeof(u32));
