@@ -58,7 +58,12 @@ wav_fmt_chunk_t make_wav_fmt_chunk(u32    num_channels ,
                                    u32     sample_rate ,
                                    u16 bits_per_sample);
 
-u64             wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o, u16 *channel_count_o);
+/// Load WAV data into [-1.0, 1.0] f64 amplitudes. populates *o inputs with information.
+/// samples will be amplitude data for each channel from the WAV file, of length sample_count.
+void              wav_load(smrt_arena_t *arena, FILE *wav, f64 ***    samples_o ,
+                                                           u16 *channel_count_o ,
+                                                           u64 * sample_count_o ,
+                                                           u32 *  sample_rate_o);
 
 f64 *       read_8bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel);
 f64 *      read_16bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel);

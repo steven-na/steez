@@ -99,7 +99,7 @@ wav_fmt_chunk_t make_wav_fmt_chunk(u32 num_channels, u32 sample_rate, u16 bits_p
     return o;
 }
 
-u64 wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o, u16 *channel_count_o) {
+void wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o ,u16 *channel_count_o ,u64 *sample_count_o, u32 *sample_rate_o) {
     smrta_temp_t scratch = smrta_scratch_start(NULL, 0);
 
     wav_master_chunk_t m;
@@ -145,7 +145,7 @@ u64 wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o, u16 *channel_coun
                                             c);
                         break;
                     default:
-                        perror("Only PCM integer 8,16,24 bits can be read.");
+                        perror("Only PCM integer 8,16,24 bits data can be read.");
                         goto failed;
                 }
                 break;
@@ -158,7 +158,7 @@ u64 wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o, u16 *channel_coun
                                                   c);
                         break;
                     default:
-                        perror("Only 32 bits float can be read.");
+                        perror("Only 32 bits float data can be read.");
                         goto failed;
                 }
                 break;
@@ -170,13 +170,17 @@ u64 wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o, u16 *channel_coun
     }
 
     smrta_scratch_end(scratch);
-    return data.sample_count;
+    *sample_count_o = data.sample_count;
+    *sample_rate_o = f.sample_rate;
+    return;
 
 failed:
     smrta_scratch_end(scratch);
     smrt_arena_pop_to_mark(arena);
     *samples_o = NULL;
-    return 0;
+    *sample_count_o = 0;
+    *sample_rate_o = 0;
+    return;
 }
 
 f64 *read_8bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel) {
