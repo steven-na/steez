@@ -99,8 +99,8 @@ wav_fmt_chunk_t make_wav_fmt_chunk(u32 num_channels, u32 sample_rate, u16 bits_p
     return o;
 }
 
-void wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o ,u16 *channel_count_o ,u64 *sample_count_o, u32 *sample_rate_o) {
-    smrta_temp_t scratch = smrta_scratch_start(NULL, 0);
+void wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o ,u16 *channel_count_o ,u64 *sample_count_o, u32 *sample_rate_o, smrt_arena_t **conflicts, u64 num_conflicts) {
+    smrta_temp_t scratch = smrta_scratch_start(conflicts, num_conflicts);
 
     wav_master_chunk_t m;
     wav_fmt_chunk_t    f;
