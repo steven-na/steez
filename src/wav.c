@@ -30,7 +30,7 @@ b32 seek_to_chunk(FILE *file, char const *chunk_name) {
     return true;
 }
 
-wav_data_t load_wav_file(smrt_arena_t *arena, FILE *wav_file, wav_master_chunk_t *master_o, wav_fmt_chunk_t *format_o) {
+wav_data_t load_wav_file(smrt_arena_t *arena, FILE *wav_file, wav_master_chunk_t *master_o, wav_fmt_chunk_t *format_o, u64 align_up_memoryn) {
     wav_data_t data = { 0 };
 
     if (!wav_file) return data;
@@ -54,7 +54,7 @@ wav_data_t load_wav_file(smrt_arena_t *arena, FILE *wav_file, wav_master_chunk_t
     u32 sampled_data_size;
     fread(&sampled_data_size, 4, 1, wav_file);
 
-    data.samples = smrt_arena_push(arena, sampled_data_size, true);
+    data.samples = smrt_arena_push(arena, ALIGN_UP_POW2(sampled_data_size, align_up_memoryn), true);
     if (!data.samples) return data;
 
     fread((u8*)data.samples, sampled_data_size, 1, wav_file);
@@ -99,7 +99,7 @@ wav_fmt_chunk_t make_wav_fmt_chunk(u32 num_channels, u32 sample_rate, u16 bits_p
     return o;
 }
 
-void wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o ,u16 *channel_count_o ,u64 *sample_count_o, u32 *sample_rate_o, smrt_arena_t **conflicts, u64 num_conflicts) {
+void wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o ,u16 *channel_count_o ,u64 *sample_count_o, u32 *sample_rate_o, u64 align_up_memoryn, smrt_arena_t **conflicts, u64 num_conflicts) {
     smrta_temp_t scratch = smrta_scratch_start(conflicts, num_conflicts);
 
     wav_master_chunk_t m;
@@ -110,14 +110,15 @@ void wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o ,u16 *channel_cou
     wav_data_t data = load_wav_file(scratch.arena,
                                     wav,
                                     &m,
-                                    &f);
+                                    &f,
+                                    align_up_memoryn);
 
     if (!data.samples) {
         perror("Failed to load data.");
         goto failed;
     }
 
-    *samples_o = SMRTA_ALLOC_ARRAY(arena, f64*, f.num_channels);
+    *samples_o = smrt_arena_push(arena, ALIGN_UP_POW2(sizeof(f64*) * f.num_channels, align_up_memoryn), true);
     *channel_count_o = f.num_channels;
 
 
@@ -130,19 +131,22 @@ void wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o ,u16 *channel_cou
                         d = read_8bps_data(arena,
                                            data,
                                            f.num_channels,
-                                           c);
+                                           c,
+                                           align_up_memoryn);
                         break;
                     case 16:
                         d = read_16bps_data(arena,
                                             data,
                                             f.num_channels,
-                                            c);
+                                            c,
+                                            align_up_memoryn);
                         break;
                     case 24:
                         d = read_24bps_data(arena,
                                             data,
                                             f.num_channels,
-                                            c);
+                                            c,
+                                            align_up_memoryn);
                         break;
                     default:
                         perror("Only PCM integer 8,16,24 bits data can be read.");
@@ -155,7 +159,8 @@ void wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o ,u16 *channel_cou
                         d = read_32bps_float_data(arena,
                                                   data,
                                                   f.num_channels,
-                                                  c);
+                                                  c,
+                                                  align_up_memoryn);
                         break;
                     default:
                         perror("Only 32 bits float data can be read.");
@@ -183,10 +188,10 @@ failed:
     return;
 }
 
-f64 *read_8bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel) {
+f64 *read_8bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel, u64 align_up_memoryn) {
     assert(num_channels != 0 && "num_channels must be >0");
 
-    f64 *vs = SMRTA_ALLOC_ARRAY(arena, f64, data.sample_count);
+    f64 *vs = smrt_arena_push(arena, ALIGN_UP_POW2(sizeof(f64) * data.sample_count, align_up_memoryn), true);
     if (!vs) return NULL;
 
     for (u64 i = 0; i < data.sample_count; i++) {
@@ -199,10 +204,10 @@ f64 *read_8bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 
     return vs;
 }
 
-f64 *read_16bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel) {
+f64 *read_16bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel, u64 align_up_memoryn) {
     assert(num_channels != 0 && "num_channels must be >0");
 
-    f64 *vs = SMRTA_ALLOC_ARRAY(arena, f64, data.sample_count);
+    f64 *vs = smrt_arena_push(arena, ALIGN_UP_POW2(sizeof(f64) * data.sample_count, align_up_memoryn), true);
     if (!vs) return NULL;
 
     for (u64 i = 0; i < data.sample_count; i++) {
@@ -217,10 +222,10 @@ f64 *read_16bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16
     return vs;
 }
 
-f64 *read_24bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel) {
+f64 *read_24bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel, u64 align_up_memoryn) {
     assert(num_channels != 0 && "num_channels must be >0");
 
-    f64 *vs = SMRTA_ALLOC_ARRAY(arena, f64, data.sample_count);
+    f64 *vs = smrt_arena_push(arena, ALIGN_UP_POW2(sizeof(f64) * data.sample_count, align_up_memoryn), true);
     if (!vs) return NULL;
 
     for (u64 i = 0; i < data.sample_count; i++) {
@@ -237,10 +242,10 @@ f64 *read_24bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16
     return vs;
 }
 
-f64 *read_32bps_float_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel) {
+f64 *read_32bps_float_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel, u64 align_up_memoryn) {
     assert(num_channels != 0 && "num_channels must be >0");
 
-    f64 *vs = SMRTA_ALLOC_ARRAY(arena, f64, data.sample_count);
+    f64 *vs = smrt_arena_push(arena, ALIGN_UP_POW2(sizeof(f64) * data.sample_count, align_up_memoryn), true);
     if (!vs) return NULL;
 
     for (u64 i = 0; i < data.sample_count; i++) {

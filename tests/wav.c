@@ -23,7 +23,7 @@ Test(wav, read_file) {
     FILE *wav_file = fopen("./tests/fixtures/sine.wav", "rb");
     cr_assert_not_null(wav_file);
 
-    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk);
+    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk, 1);
 
     fclose(wav_file);
 
@@ -46,7 +46,7 @@ Test(wav, read_sample_data_matches_source) {
     FILE *wav_file = fopen("./tests/fixtures/sine.wav", "rb");
     cr_assert_not_null(wav_file);
 
-    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk);
+    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk, 1);
 
     fclose(wav_file);
 
@@ -69,7 +69,7 @@ Test(wav, read_missing_file_returns_null) {
     FILE *wav_file = fopen("./tests/fixtures/does_not_exist.wav", "rb");
     cr_assert_null(wav_file);
 
-    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk);
+    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk, 1);
 
     cr_expect_eq(data.samples, NULL);
 
@@ -85,7 +85,7 @@ Test(wav, read_stereo_16bit) {
     FILE *wav_file = fopen("./tests/fixtures/stereo16.wav", "rb");
     cr_assert_not_null(wav_file);
 
-    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk);
+    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk, 1);
 
     fclose(wav_file);
 
@@ -111,7 +111,7 @@ Test(wav, read_mono_8bit) {
     FILE *wav_file = fopen("./tests/fixtures/mono8.wav", "rb");
     cr_assert_not_null(wav_file);
 
-    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk);
+    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk, 1);
 
     fclose(wav_file);
 
@@ -137,7 +137,7 @@ Test(wav, read_skips_unknown_chunk_before_fmt) {
     FILE *wav_file = fopen("./tests/fixtures/extra_chunk.wav", "rb");
     cr_assert_not_null(wav_file);
 
-    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk);
+    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk, 1);
 
     fclose(wav_file);
 
@@ -159,7 +159,7 @@ Test(wav, read_odd_sized_chunk_before_fmt, .timeout = 2) {
     FILE *wav_file = fopen("./tests/fixtures/odd_chunk.wav", "rb");
     cr_assert_not_null(wav_file);
 
-    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk);
+    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk, 1);
 
     fclose(wav_file);
 
@@ -180,7 +180,7 @@ Test(wav, read_missing_data_chunk, .timeout = 2) {
     FILE *wav_file = fopen("./tests/fixtures/missing_data_chunk.wav", "rb");
     cr_assert_not_null(wav_file);
 
-    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk);
+    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk, 1);
 
     fclose(wav_file);
 
@@ -198,7 +198,7 @@ Test(wav, read_arena_too_small_for_data) {
     FILE *wav_file = fopen("./tests/fixtures/sine.wav", "rb");
     cr_assert_not_null(wav_file);
 
-    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk);
+    wav_data_t data = load_wav_file(arena, wav_file, &mchunk, &fmtchunk, 1);
 
     fclose(wav_file);
 
@@ -270,7 +270,7 @@ Test(wav, read_rejects_non_pcm_format, .init = non_pcm_setup, .fini = non_pcm_te
     wav_master_chunk_t mchunk;
     wav_fmt_chunk_t  read_fmtchunk;
 
-    wav_data_t read_data = load_wav_file(arena, readback_file, &mchunk, &read_fmtchunk);
+    wav_data_t read_data = load_wav_file(arena, readback_file, &mchunk, &read_fmtchunk, 1);
 
     fclose(readback_file);
 
@@ -311,7 +311,7 @@ Test(wav, write_sine, .init = write_sine_setup, .fini = write_sine_teardown) {
     wav_master_chunk_t mchunk;
     wav_fmt_chunk_t  read_fmtchunk;
 
-    wav_data_t read_data = load_wav_file(arena, readback_file, &mchunk, &read_fmtchunk);
+    wav_data_t read_data = load_wav_file(arena, readback_file, &mchunk, &read_fmtchunk, 1);
 
     fclose(readback_file);
 
