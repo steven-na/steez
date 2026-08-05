@@ -19,6 +19,8 @@
 #define F64_EQ(x, y, eps) (fabs((x) - (y)) <= (eps))
 #define MAX(n, m) ((n > m) ? (n) : (m))
 #define MIN(n, m) ((n < m) ? (n) : (m))
+// n and m are expected to be byte counts (m a power of 2); keep call sites in bytes,
+// not element counts, so alignment semantics stay consistent across the codebase.
 #define ALIGN_UP_POW2(n, m) (((u64)(n) + (u64)(m) - 1) & (~((u64)(m) - 1)))
 
 typedef   int8_t  i8;

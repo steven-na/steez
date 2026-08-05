@@ -149,7 +149,7 @@ stft_data_t short_time_fourier_transform(smrt_arena_t *arena, u64 window_size, u
     assert(F64_EQ(round(log2(window_size)), log2(window_size), 1e-9) &&
            "STFT input window_size must be a power of 2");
 
-    sample_count = ALIGN_UP_POW2(sample_count, window_size);
+    sample_count = ALIGN_UP_POW2(sample_count * sizeof(f64), STFT_SAMPLE_ALIGN_BYTES(window_size)) / sizeof(f64);
 
     u64 segment_count = ((sample_count - window_size) / hop_size) + 1;
 

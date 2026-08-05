@@ -218,6 +218,24 @@ Test(dft, stft_segments_match_direct_transform) {
     smrt_arena_destroy(arena);
 }
 
+Test(dft, stft_handles_unaligned_sample_count_with_wav_load_style_buffer) {
+    smrt_arena_t *arena = smrt_arena_create(KiB(64), KiB(4), false);
+
+    u64 sample_count = 13, sample_rate = 16, window_size = 8, hop_size = 4;
+
+    // Mirrors how wav_load/load_wav_file size their sample buffer: byte-aligned to
+    // STFT_SAMPLE_ALIGN_BYTES(window_size) and zero-initialized, not element-aligned.
+    f64 *samples = smrt_arena_push(arena, ALIGN_UP_POW2(sample_count * sizeof(f64), STFT_SAMPLE_ALIGN_BYTES(window_size)), true);
+    for (u64 i = 0; i < sample_count; i++) samples[i] = (f64)(i + 1);
+
+    stft_data_t stft = short_time_fourier_transform(arena, window_size, hop_size, samples, sample_count, sample_rate);
+
+    cr_assert_eq(stft.segment_count, 3);
+    cr_assert_neq(stft.segments, NULL);
+
+    smrt_arena_destroy(arena);
+}
+
 Test(dft, fast_fourier_transform_matches_direct_transform) {
     smrt_arena_t *arena = smrt_arena_create(KiB(16), KiB(4), false);
 

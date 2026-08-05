@@ -42,9 +42,15 @@ typedef struct {
                u64   sample_rate;
 } stft_data_t;
 
+/// Byte alignment required for a samples buffer to safely back
+/// short_time_fourier_transform with the given window_size. Pass this as
+/// align_up_memoryn to wav_load/load_wav_file when loading samples for STFT use.
+#define STFT_SAMPLE_ALIGN_BYTES(window_size) ((u64)(window_size) * sizeof(f64))
+
 /// Run STFT algorithm on samples, sliding a window_size window by hop_size each step
-/// Warning: This function assumes that samples' allocation is large enough to fit
-/// ALIGN_UP_POW2(sample_count, window_size) elements.
+/// Warning: This function assumes that samples' allocation is at least
+/// STFT_SAMPLE_ALIGN_BYTES(window_size)-byte aligned (e.g. by passing
+/// STFT_SAMPLE_ALIGN_BYTES(window_size) as align_up_memoryn to wav_load/load_wav_file).
 stft_data_t short_time_fourier_transform(smrt_arena_t *        arena ,
                                                     u64  window_size ,
                                                     u64     hop_size ,
