@@ -258,7 +258,7 @@ Test(wav, read_rejects_non_pcm_format, .init = non_pcm_setup, .fini = non_pcm_te
     wav_data_t data = { .samples = &sample, .sample_count = 1 };
 
     wav_fmt_chunk_t fmtchunk = make_wav_fmt_chunk(1, 8000, 8);
-    fmtchunk.audio_format = 3; // IEEE 754 float, not PCM
+    fmtchunk.audio_format = 6; // A-law, neither PCM integer (1) nor IEEE float (3)
 
     cr_assert(write_wav_file(wav_file, &fmtchunk, data));
 
@@ -274,7 +274,7 @@ Test(wav, read_rejects_non_pcm_format, .init = non_pcm_setup, .fini = non_pcm_te
 
     fclose(readback_file);
 
-    cr_expect_eq(read_fmtchunk.audio_format, 3);
+    cr_expect_eq(read_fmtchunk.audio_format, 6);
     cr_expect_eq(read_data.samples, NULL);
 
     smrt_arena_destroy(arena);

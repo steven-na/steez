@@ -183,8 +183,20 @@ stft_data_t short_time_fourier_transform(smrt_arena_t *arena, u64 window_size, u
     };
 }
 
-void inverse_fast_fourier_transform(vec2d_soa_t vs) {
-    u64 sample_count = vs.size;
+void inverse_fast_fourier_transform(smrt_arena_t *arena, f64 const *real, f64 const *imag, u64 sample_count, f64 **real_o, f64 **imag_o, smrt_arena_t **conflicts, u64 num_conflicts) {
+    assert(F64_EQ(round(log2(sample_count)), log2(sample_count), 1e-9) &&
+           "iFFT input sample_count must be a power of 2");
+
+    smrta_temp_t scratch = smrta_scratch_start(conflicts, num_conflicts);
+
+    vec2d_soa_t vs;
+    vs.xs = real_o ? (*real_o = SMRTA_ALLOC_ARRAY(arena, f64, sample_count)) : SMRTA_ALLOC_ARRAY(scratch.arena, f64, sample_count);
+    vs.ys = imag_o ? (*imag_o = SMRTA_ALLOC_ARRAY(arena, f64, sample_count)) : SMRTA_ALLOC_ARRAY(scratch.arena, f64, sample_count);
+    vs.size = sample_count;
+
+    memcpy(vs.xs, real, sample_count * sizeof(f64));
+    memcpy(vs.ys, imag, sample_count * sizeof(f64));
+
     u64 l2 = (u64)log2(sample_count);
 
     for (u64 i = 0; i < sample_count; i++) {
@@ -216,6 +228,8 @@ void inverse_fast_fourier_transform(vec2d_soa_t vs) {
             }
         }
     }
+
+    smrta_scratch_end(scratch);
 }
 
 f64 *inverse_short_time_fourier_transform(smrt_arena_t *arena, stft_data_t stft,  u64 window_size, u64 hop_size, smrt_arena_t **conflicts, u64 num_conflicts) {
@@ -235,18 +249,16 @@ f64 *inverse_short_time_fourier_transform(smrt_arena_t *arena, stft_data_t stft,
     for (u64 k = 0;  k < stft.segment_count; k++) {
         smrt_arena_mark(scratch.arena);
 
-        vec2d_soa_t vs;
-        vs.xs = SMRTA_ALLOC_ARRAY(scratch.arena, f64, window_size);
-        vs.ys = SMRTA_ALLOC_ARRAY(scratch.arena, f64, window_size);
-        vs.size = window_size;
+        f64 *spec_real, *spec_imag;
+        reconstruct_spectrum(scratch.arena, &frames[k], window_size, &spec_real, &spec_imag);
 
-        reconstruct_spectrum(&frames[k], window_size, vs);
-        inverse_fast_fourier_transform(vs);
+        f64 *real_o;
+        inverse_fast_fourier_transform(scratch.arena, spec_real, spec_imag, window_size, &real_o, NULL, NULL, 0);
 
         u64 start = k * hop_size;
 
         for (u64 j = 0; j < window_size; j++) {
-            output[start + j] += vs.xs[j];
+            output[start + j] += real_o[j];
             weights[start + j] += 1.0;
         }
 
@@ -263,20 +275,23 @@ f64 *inverse_short_time_fourier_transform(smrt_arena_t *arena, stft_data_t stft,
     return output;
 }
 
-void reconstruct_spectrum(dft_data_t *data, u64 sample_count, vec2d_soa_t vs) {
+void reconstruct_spectrum(smrt_arena_t *arena, dft_data_t const *data, u64 sample_count, f64 **real_o, f64 **imag_o) {
+    f64 *real = *real_o = SMRTA_ALLOC_ARRAY(arena, f64, sample_count);
+    f64 *imag = *imag_o = SMRTA_ALLOC_ARRAY(arena, f64, sample_count);
+
     for (u64 k = 0; k < data->freq_count; k++) {
         f64 amp = data->amplitudes[k];
         if (k != 0 && k != sample_count / 2) amp /= 2.0;
 
         f64 phase = data->phases[k];
-        vs.xs[k] = amp * cos(phase);
-        vs.ys[k] = amp * sin(phase);
+        real[k] = amp * cos(phase);
+        imag[k] = amp * sin(phase);
     }
 
     for (u64 j = (sample_count/2) + 1; j < sample_count; j++) {
         u64 mirror = sample_count - j;
-        vs.xs[j] =  vs.xs[mirror];
-        vs.ys[j] = -vs.ys[mirror];
+        real[j] =  real[mirror];
+        imag[j] = -imag[mirror];
     }
 }
 

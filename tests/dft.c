@@ -185,68 +185,170 @@ Test(dft, data_to_wav_varies_with_time) {
 Test(dft, stft_segments_match_direct_transform) {
     smrt_arena_t *arena = smrt_arena_create(KiB(64), KiB(4), false);
 
-    u64 sample_count = 12, sample_rate = 12, samples_per_segment = 5;
+    u64 sample_count = 16, sample_rate = 16, window_size = 8, hop_size = 4;
     f64 freqs[1] = { 2.0 };
     f64  amps[1] = { 1.0 };
     f64 *samples = mock_amplitude_data(arena, freqs, amps, 1, (f64)sample_count/sample_rate, sample_count);
 
-    stft_data_t stft = short_time_fourier_transform(arena, samples_per_segment, samples, sample_count, sample_rate);
+    stft_data_t stft = short_time_fourier_transform(arena, window_size, hop_size, samples, sample_count, sample_rate);
 
     cr_assert_eq(stft.segment_count, 3);
 
-    u64 expected_starts[3] = { 0, 5, 10 };
-    u64 expected_counts[3] = { 5, 5, 2 };
+    u64 expected_starts[3] = { 0, 4, 8 };
 
     for (u64 s = 0; s < stft.segment_count; s++) {
         stft_segment_t seg = stft.segments[s];
         cr_expect_eq(seg.start_index, expected_starts[s]);
-        cr_expect_eq(seg.sample_count, expected_counts[s]);
+        cr_expect_eq(seg.sample_count, window_size);
 
-        dft_data_t direct = discrete_fourier_transform(arena, samples + seg.start_index, seg.sample_count, sample_rate);
+        dft_data_t direct = discrete_fourier_transform(arena, samples + seg.start_index, window_size, sample_rate);
 
         cr_assert_eq(seg.data.freq_count, direct.freq_count);
         for (u64 i = 0; i < direct.freq_count; i++) {
             cr_expect(F64_EQ(seg.data.frequencies[i], direct.frequencies[i], 1e-9));
             cr_expect(F64_EQ(seg.data.amplitudes[i],  direct.amplitudes[i],  1e-9));
-            cr_expect(F64_EQ(seg.data.phases[i],      direct.phases[i],      1e-9));
+
+            // phase is only meaningful at bins with non-negligible amplitude
+            if (direct.amplitudes[i] > 1e-6) {
+                cr_expect(F64_EQ(seg.data.phases[i], direct.phases[i], 1e-9));
+            }
         }
     }
 
     smrt_arena_destroy(arena);
 }
 
-Test(dft, stft_data_to_wav_concatenates_segments) {
+Test(dft, fast_fourier_transform_matches_direct_transform) {
     smrt_arena_t *arena = smrt_arena_create(KiB(16), KiB(4), false);
 
-    stft_segment_t segs[2] = { 0 };
+    u64 sample_count = 16, sample_rate = 16;
+    u64 k1 = 2, k2 = 5;
+    f64 freqs[2] = { (f64)k1 * sample_rate / sample_count, (f64)k2 * sample_rate / sample_count };
+    f64  amps[2] = { 1.5, 0.5 };
+    f64 *samples = mock_amplitude_data(arena, freqs, amps, 2, (f64)sample_count/sample_rate, sample_count);
 
-    segs[0].start_index = 0;
-    segs[0].sample_count = 4;
-    segs[0].data.freq_count = 1;
-    segs[0].data.frequencies = SMRTA_ALLOC_ARRAY(arena, f64, 1);
-    segs[0].data.amplitudes  = SMRTA_ALLOC_ARRAY(arena, f64, 1);
-    segs[0].data.phases      = SMRTA_ALLOC_ARRAY(arena, f64, 1);
-    segs[0].data.amplitudes[0] = 0.5;
+    dft_data_t fft = fast_fourier_transform(arena, samples, sample_count, sample_rate, NULL, 0);
+    dft_data_t dft = discrete_fourier_transform(arena, samples, sample_count, sample_rate);
 
-    segs[1].start_index = 4;
-    segs[1].sample_count = 6;
-    segs[1].data.freq_count = 1;
-    segs[1].data.frequencies = SMRTA_ALLOC_ARRAY(arena, f64, 1);
-    segs[1].data.amplitudes  = SMRTA_ALLOC_ARRAY(arena, f64, 1);
-    segs[1].data.phases      = SMRTA_ALLOC_ARRAY(arena, f64, 1);
-    segs[1].data.amplitudes[0] = -0.5;
+    cr_assert_eq(fft.freq_count, dft.freq_count);
+    for (u64 i = 0; i < dft.freq_count; i++) {
+        cr_expect(F64_EQ(fft.frequencies[i], dft.frequencies[i], 1e-9));
+        cr_expect(F64_EQ(fft.amplitudes[i],  dft.amplitudes[i],  1e-9));
+    }
 
-    stft_data_t stft = {
-        .segments = segs,
-        .segment_count = 2,
-        .sample_rate = 10,
-    };
+    // phase is only meaningful at bins with non-negligible amplitude
+    cr_expect(F64_EQ(fft.phases[k1], dft.phases[k1], 1e-9));
+    cr_expect(F64_EQ(fft.phases[k2], dft.phases[k2], 1e-9));
 
-    wav_data_t wav = stft_data_to_wav(arena, stft, 10);
+    smrt_arena_destroy(arena);
+}
 
-    cr_assert_eq(wav.sample_count, 10);
-    for (u64 i = 0; i < 4; i++) cr_expect_eq(wav.samples[i], 190);
-    for (u64 i = 4; i < 10; i++) cr_expect_eq(wav.samples[i], 63);
+Test(dft, inverse_fast_fourier_transform_recovers_time_domain) {
+    smrt_arena_t *arena = smrt_arena_create(KiB(16), KiB(4), false);
+
+    u64 sample_count = 8;
+
+    // single-bin spectrum: X_1 = 8 + 0i, all other bins zero
+    f64 real[8] = { 0 };
+    f64 imag[8] = { 0 };
+    real[1] = 8.0;
+
+    f64 *real_o, *imag_o;
+    inverse_fast_fourier_transform(arena, real, imag, sample_count, &real_o, &imag_o, NULL, 0);
+
+    for (u64 n = 0; n < sample_count; n++) {
+        f64 angle = 2.0 * PI * (f64)n / (f64)sample_count;
+        cr_expect(F64_EQ(real_o[n], 8.0 * cos(angle), 1e-9));
+        cr_expect(F64_EQ(imag_o[n], 8.0 * sin(angle), 1e-9));
+    }
+
+    // input must be untouched
+    cr_expect(F64_EQ(real[1], 8.0, 1e-9));
+    for (u64 n = 0; n < sample_count; n++) {
+        if (n != 1) cr_expect(F64_EQ(real[n], 0.0, 1e-9));
+        cr_expect(F64_EQ(imag[n], 0.0, 1e-9));
+    }
+
+    smrt_arena_destroy(arena);
+}
+
+Test(dft, inverse_fast_fourier_transform_skips_null_outputs) {
+    smrt_arena_t *arena = smrt_arena_create(KiB(16), KiB(4), false);
+
+    u64 sample_count = 8;
+
+    f64 real[8] = { 0 };
+    f64 imag[8] = { 0 };
+    real[1] = 8.0;
+
+    f64 *real_o;
+    inverse_fast_fourier_transform(arena, real, imag, sample_count, &real_o, NULL, NULL, 0);
+
+    cr_assert_not_null(real_o);
+    for (u64 n = 0; n < sample_count; n++) {
+        f64 angle = 2.0 * PI * (f64)n / (f64)sample_count;
+        cr_expect(F64_EQ(real_o[n], 8.0 * cos(angle), 1e-9));
+    }
+
+    smrt_arena_destroy(arena);
+}
+
+Test(dft, reconstruct_spectrum_mirrors_conjugate) {
+    smrt_arena_t *arena = smrt_arena_create(KiB(16), KiB(4), false);
+
+    u64 sample_count = 8;
+
+    dft_data_t data = { .freq_count = 5 };
+    data.frequencies = SMRTA_ALLOC_ARRAY(arena, f64, 5);
+    data.amplitudes  = SMRTA_ALLOC_ARRAY(arena, f64, 5);
+    data.phases      = SMRTA_ALLOC_ARRAY(arena, f64, 5);
+
+    data.amplitudes[0] = 2.0; data.phases[0] = 0.0;
+    data.amplitudes[1] = 1.0; data.phases[1] = PI / 4.0;
+    data.amplitudes[2] = 0.6; data.phases[2] = PI / 3.0;
+    data.amplitudes[3] = 0.4; data.phases[3] = -PI / 6.0;
+    data.amplitudes[4] = 0.8; data.phases[4] = PI;
+
+    f64 *real_o, *imag_o;
+    reconstruct_spectrum(arena, &data, sample_count, &real_o, &imag_o);
+
+    // DC and Nyquist bins keep their full amplitude
+    cr_expect(F64_EQ(real_o[0], 2.0, 1e-9));
+    cr_expect(F64_EQ(imag_o[0], 0.0, 1e-9));
+    cr_expect(F64_EQ(real_o[4], 0.8 * cos(PI), 1e-9));
+    cr_expect(F64_EQ(imag_o[4], 0.8 * sin(PI), 1e-9));
+
+    // interior bins are halved before being placed on the unit circle
+    cr_expect(F64_EQ(real_o[1], 0.5 * cos(PI / 4.0), 1e-9));
+    cr_expect(F64_EQ(imag_o[1], 0.5 * sin(PI / 4.0), 1e-9));
+
+    // mirrored bins are complex conjugates of their positive-frequency counterpart
+    cr_expect(F64_EQ(real_o[5], real_o[3], 1e-9));
+    cr_expect(F64_EQ(imag_o[5], -imag_o[3], 1e-9));
+    cr_expect(F64_EQ(real_o[6], real_o[2], 1e-9));
+    cr_expect(F64_EQ(imag_o[6], -imag_o[2], 1e-9));
+    cr_expect(F64_EQ(real_o[7], real_o[1], 1e-9));
+    cr_expect(F64_EQ(imag_o[7], -imag_o[1], 1e-9));
+
+    smrt_arena_destroy(arena);
+}
+
+Test(dft, istft_round_trip_recovers_samples) {
+    smrt_arena_t *arena = smrt_arena_create(MiB(1), KiB(4), false);
+
+    u64 sample_count = 32, sample_rate = 32, window_size = 8, hop_size = 4;
+    f64 freqs[1] = { 3.0 };
+    f64  amps[1] = { 1.0 };
+    f64 *samples = mock_amplitude_data(arena, freqs, amps, 1, (f64)sample_count/sample_rate, sample_count);
+
+    stft_data_t stft = short_time_fourier_transform(arena, window_size, hop_size, samples, sample_count, sample_rate);
+    cr_assert_eq(stft.segment_count, 7);
+
+    f64 *output = inverse_short_time_fourier_transform(arena, stft, window_size, hop_size, NULL, 0);
+
+    for (u64 i = 0; i < sample_count; i++) {
+        cr_expect(F64_EQ(output[i], samples[i], 1e-9));
+    }
 
     smrt_arena_destroy(arena);
 }
