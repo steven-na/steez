@@ -44,6 +44,80 @@ dft_data_t discrete_fourier_transform(smrt_arena_t *arena, f64 *samples, u64 sam
         return d;
 }
 
+static inline u64 bit_reverse(u64 n, u8 m) {
+    u64 out = 0;
+    for (u64 i = 0; i < m; i++) {
+        out = (out << 1) | (n & 1);
+        n >>= 1;
+    }
+    return out;
+}
+
+dft_data_t fast_fourier_transform(smrt_arena_t *arena, f64 *samples, u64 sample_count, u64 sample_rate, smrt_arena_t **conflicts, u64 num_conflicts) {
+    assert(F64_EQ(round(log2(sample_count)), log2(sample_count), 1e-9) &&
+           "FFT input sample_count must be a power of 2");
+
+    smrta_temp_t scratch = smrta_scratch_start(conflicts, num_conflicts);
+
+    vec2d_soa_t vs;
+    vs.xs = SMRTA_ALLOC_ARRAY(scratch.arena, f64, sample_count);
+    vs.ys = SMRTA_ALLOC_ARRAY(scratch.arena, f64, sample_count);
+    vs.size = sample_count;
+
+    f64 l2 = log2(sample_count);
+
+    for (u64 i = 0; i < sample_count; i++) {
+        u64 j = bit_reverse(i, l2);
+        vs.xs[j] = samples[i];
+    }
+
+    for (u64 s = 1; s <= l2; s++) {
+        u64 m = 1 << s;
+        u64 n = m / 2;
+
+        f64 angle_step = -2.0 * PI / (f64)m;
+        vec2d_t w_step = {.x=cos(angle_step), .y=sin(angle_step)};
+
+        for (u64 k = 0; k < sample_count; k+=m) {
+            vec2d_t w = VEC2D_FROM(1.0, 0.0);
+
+            for (u64 j = 0; j < n; j++) {
+                vec2d_t t = vec2d_cmul(w, vec2d_soa_get(&vs, k + j + n));
+                vec2d_t u = vec2d_soa_get(&vs, k + j);
+
+                vec2d_soa_set(&vs, k + j    , vec2d_add(u, t));
+                vec2d_soa_set(&vs, k + j + n, vec2d_sub(u, t));
+
+                w = vec2d_cmul(w, w_step);
+            }
+        }
+    }
+
+    u64 freq_count = (sample_count / 2) + 1;
+    f64  freq_step = (f64)sample_rate / (f64)sample_count;
+
+    dft_data_t d = {.freq_count = freq_count};
+    d.frequencies = SMRTA_ALLOC_ARRAY(arena, f64, freq_count);
+     d.amplitudes = SMRTA_ALLOC_ARRAY(arena, f64, freq_count);
+         d.phases = SMRTA_ALLOC_ARRAY(arena, f64, freq_count);
+
+    for (u64 i = 0; i < freq_count; i++) {
+        vec2d_t v = vec2d_soa_get(&vs, i);
+
+        f64 amp = vec2d_length(v) / (f64)sample_count;
+        if (i != 0 && i != freq_count - 1) amp *= 2;
+
+        f64 phase = atan2(v.y, v.x);
+
+        d.frequencies[i] = i * freq_step;
+         d.amplitudes[i] = amp;
+             d.phases[i] = phase;
+    }
+
+    smrta_scratch_end(scratch);
+    return d;
+}
+
 wav_data_t dft_data_to_wav(smrt_arena_t *arena, dft_data_t dft, u64 sample_rate, f64 duration) {
     u64 sample_count = (u64)(sample_rate * duration);
 
@@ -70,70 +144,139 @@ wav_data_t dft_data_to_wav(smrt_arena_t *arena, dft_data_t dft, u64 sample_rate,
     return d;
 }
 
-stft_data_t short_time_fourier_transform(smrt_arena_t *arena, u64 samples_per_segment, f64 *samples, u64 sample_count, u64 sample_rate) {
-    u64 segment_count = (u64)ceil((f64)sample_count / samples_per_segment);
+stft_data_t short_time_fourier_transform(smrt_arena_t *arena, u64 window_size, u64 hop_size, f64 *samples, u64 sample_count, u64 sample_rate) {
+    assert(F64_EQ(round(log2(window_size)), log2(window_size), 1e-9) &&
+           "STFT input window_size must be a power of 2");
+    assert(sample_count % window_size == 0 &&
+           "Sample count must evenly divide into window_size chunks");
+
+    u64 segment_count = ((sample_count - window_size) / hop_size) + 1;
 
     stft_segment_t *segments = SMRTA_ALLOC_ARRAY(arena, stft_segment_t, segment_count);
     if (!segments) return (stft_data_t){ 0 };
 
-    for (u64 seg_num = 0; seg_num < segment_count; seg_num++) {
+    for (u64 i = 0; i < segment_count; i++) {
+        u64 start = hop_size * i;
 
-        u64 samples_in_this_seg = samples_per_segment;
-        if (seg_num == segment_count - 1 && !(sample_count % samples_per_segment == 0))
-            samples_in_this_seg = sample_count % samples_per_segment;
+        f64 *seg_samples = samples + start;
 
         stft_segment_t seg = {
-            .start_index = samples_per_segment * seg_num,
-            .sample_count = samples_in_this_seg,
+            .start_index = start,
+            .sample_count = window_size,
         };
 
-        seg.data = discrete_fourier_transform(
+        seg.data = fast_fourier_transform(
             arena,
-            samples + seg.start_index,
-            samples_in_this_seg,
-            sample_rate
+            seg_samples,
+            window_size,
+            sample_rate,
+            NULL, 0
         );
 
-        segments[seg_num] = seg;
+        segments[i] = seg;
     }
 
-    stft_data_t data = {
-        .segment_count = segment_count,
-        .sample_rate = sample_rate,
-        .segments = segments
+    return (stft_data_t){
+        .sample_rate=sample_rate,
+        .segment_count=segment_count,
+        .segments=segments,
     };
-
-    return data;
 }
 
-wav_data_t stft_data_to_wav(smrt_arena_t *arena, stft_data_t stft, u64 sample_count) {
-    u8 *data = SMRTA_ALLOC_ARRAY(arena, u8, sample_count);
-    if (!data) return (wav_data_t){ 0 };
+void inverse_fast_fourier_transform(vec2d_soa_t vs) {
+    u64 sample_count = vs.size;
+    u64 l2 = (u64)log2(sample_count);
 
-    wav_data_t d = {
-        .sample_count=sample_count,
-        .samples = data,
-    };
-
-    u64 offset = 0;
-    for (u64 seg_num = 0; seg_num < stft.segment_count; seg_num++) {
-        smrta_temp_t scratch = smrta_scratch_start(NULL, 0);
-
-        stft_segment_t seg = stft.segments[seg_num];
-
-        wav_data_t wav_data = dft_data_to_wav(
-            scratch.arena,
-            seg.data,
-            stft.sample_rate,
-            (f64)seg.sample_count / stft.sample_rate
-        );
-
-        memcpy(data + offset, wav_data.samples, wav_data.sample_count);
-
-        offset += wav_data.sample_count * sizeof(u8);
-
-        smrta_scratch_end(scratch);
+    for (u64 i = 0; i < sample_count; i++) {
+        u64 j = bit_reverse(i, l2);
+        if (j > i) {
+            f64 tx = vs.xs[i]; vs.xs[i] = vs.xs[j]; vs.xs[j] = tx;
+            f64 ty = vs.ys[i]; vs.ys[i] = vs.ys[j]; vs.ys[j] = ty;
+        }
     }
 
-    return d;
+    for (u64 s = 1; s <= l2; s++) {
+        u64 m = 1 << s;
+        u64 n = m / 2;
+
+        f64 angle_step = 2.0 * PI / (f64)m;
+        vec2d_t w_step = {.x=cos(angle_step), .y=sin(angle_step)};
+
+        for (u64 k = 0; k < sample_count; k+=m) {
+            vec2d_t w = VEC2D_FROM(1.0, 0.0);
+
+            for (u64 j = 0; j < n; j++) {
+                vec2d_t t = vec2d_cmul(w, vec2d_soa_get(&vs, k + j + n));
+                vec2d_t u = vec2d_soa_get(&vs, k + j);
+
+                vec2d_soa_set(&vs, k + j    , vec2d_add(u, t));
+                vec2d_soa_set(&vs, k + j + n, vec2d_sub(u, t));
+
+                w = vec2d_cmul(w, w_step);
+            }
+        }
+    }
 }
+
+f64 *inverse_short_time_fourier_transform(smrt_arena_t *arena, stft_data_t stft,  u64 window_size, u64 hop_size, smrt_arena_t **conflicts, u64 num_conflicts) {
+    smrta_temp_t scratch = smrta_scratch_start(conflicts, num_conflicts);
+
+    u64 output_len = (stft.segment_count - 1) * hop_size + window_size;
+
+    dft_data_t *frames = SMRTA_ALLOC_ARRAY(scratch.arena, dft_data_t, stft.segment_count);
+
+    for (u64 i = 0; i < stft.segment_count; i++) {
+        frames[i] = stft.segments[i].data;
+    }
+
+    f64 * output = SMRTA_ALLOC_ARRAY(arena, f64, output_len);
+    f64 *weights = SMRTA_ALLOC_ARRAY(scratch.arena, f64, output_len);
+
+    for (u64 k = 0;  k < stft.segment_count; k++) {
+        smrt_arena_mark(scratch.arena);
+
+        vec2d_soa_t vs;
+        vs.xs = SMRTA_ALLOC_ARRAY(scratch.arena, f64, window_size);
+        vs.ys = SMRTA_ALLOC_ARRAY(scratch.arena, f64, window_size);
+        vs.size = window_size;
+
+        reconstruct_spectrum(&frames[k], window_size, vs);
+        inverse_fast_fourier_transform(vs);
+
+        u64 start = k * hop_size;
+
+        for (u64 j = 0; j < window_size; j++) {
+            output[start + j] += vs.xs[j];
+            weights[start + j] += 1.0;
+        }
+
+        smrt_arena_pop_to_mark(scratch.arena);
+    }
+
+    for (u64 w = 0; w < output_len; w++) {
+        if (weights[w] > 1e-9) {
+            output[w] /= weights[w];
+        }
+    }
+
+    smrta_scratch_end(scratch);
+    return output;
+}
+
+void reconstruct_spectrum(dft_data_t *data, u64 sample_count, vec2d_soa_t vs) {
+    for (u64 k = 0; k < data->freq_count; k++) {
+        f64 amp = data->amplitudes[k];
+        if (k != 0 && k != sample_count / 2) amp /= 2.0;
+
+        f64 phase = data->phases[k];
+        vs.xs[k] = amp * cos(phase);
+        vs.ys[k] = amp * sin(phase);
+    }
+
+    for (u64 j = (sample_count/2) + 1; j < sample_count; j++) {
+        u64 mirror = sample_count - j;
+        vs.xs[j] =  vs.xs[mirror];
+        vs.ys[j] = -vs.ys[mirror];
+    }
+}
+

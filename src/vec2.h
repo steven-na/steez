@@ -96,6 +96,15 @@ f64 vec2d_dot(vec2d_t v1, vec2d_t v2) {
     return (v1.x * v2.x) + (v1.y * v2.y);
 }
 
+// Complex number vector multiplication
+static inline
+vec2d_t vec2d_cmul(vec2d_t c1, vec2d_t c2) {
+    return (vec2d_t){
+        .x = (c1.x * c2.x) - (c1.y * c2.y),
+        .y = (c1.x * c2.y) + (c1.y * c2.x),
+    };
+}
+
 // -------------------------------------------
 // vec2d_soa_t inline operations
 // -------------------------------------------
