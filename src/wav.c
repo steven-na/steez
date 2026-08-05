@@ -1,4 +1,5 @@
 #include "wav.h"
+#include "common.h"
 #include "smrt_arena.h"
 
 #include <assert.h>
@@ -259,4 +260,28 @@ f64 *read_32bps_float_data(smrt_arena_t *arena, wav_data_t data, u16 num_channel
     }
 
     return vs;
+}
+
+f64 *combine_channels(smrt_arena_t *arena, f64 **channels, u64 num_channels, u64 sample_count) {
+    assert(num_channels != 0 && "num_channels must be >0");
+
+    f64 *samples = SMRTA_ALLOC_ARRAY(arena, f64, num_channels * sample_count);
+
+    for (u64 s = 0; s < sample_count; s++) {
+        for (u64 c = 0; c < num_channels; c++) {
+            samples[s*num_channels + c] = channels[c][s];
+        }
+    }
+
+    return samples;
+}
+
+f32 *f64_to_f32(smrt_arena_t *arena, f64 *samples, u64 sample_count) {
+    f32 *o = SMRTA_ALLOC_ARRAY(arena, f32, sample_count);
+
+    for (u64 i = 0; i < sample_count; i++) {
+        o[i] = (f32)samples[i];
+    }
+
+    return o;
 }

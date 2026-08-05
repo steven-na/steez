@@ -62,6 +62,7 @@ wav_fmt_chunk_t make_wav_fmt_chunk(u32    num_channels ,
 
 /// Load WAV data into [-1.0, 1.0] f64 amplitudes. Populates -o inputs with information.
 /// samples will be amplitude data for each channel from the WAV file, of length sample_count.
+/// align_up_memoryn will align allocation up to nearest multiple (For FFT)
 void              wav_load(smrt_arena_t *arena, FILE *wav, f64 ***    samples_o ,
                                                            u16 *channel_count_o ,
                                                            u64 * sample_count_o ,
@@ -73,3 +74,9 @@ f64 *       read_8bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channel
 f64 *      read_16bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel, u64 align_up_memoryn);
 f64 *      read_24bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel, u64 align_up_memoryn);
 f64 *read_32bps_float_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel, u64 align_up_memoryn);
+
+/// Combine channel_count arrays of sample_count samples from **channels
+/// Interleaving for WAV format audio storage.
+f64 *combine_channels(smrt_arena_t *arena, f64 **channels, u64 channel_count, u64 sample_count);
+
+f32 *f64_to_f32(smrt_arena_t *arena, f64 *samples, u64 sample_count);

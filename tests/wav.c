@@ -12,6 +12,7 @@
 #include <criterion/criterion.h>
 #include <criterion/internal/assert.h>
 #include <criterion/internal/test.h>
+#include <criterion/redirect.h>
 #include <string.h>
 
 Test(wav, read_file) {
@@ -241,6 +242,7 @@ static int non_pcm_fd;
 void non_pcm_setup(void) {
     non_pcm_fd = mkstemp(non_pcm_path);
     cr_assert_geq(non_pcm_fd, 0, "mkstemp failed");
+    cr_redirect_stderr(); // load_wav_file perror()s on the rejected format; that's expected
 }
 
 void non_pcm_teardown(void) {
