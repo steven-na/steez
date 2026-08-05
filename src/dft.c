@@ -1,4 +1,5 @@
 #include "dft.h"
+#include "common.h"
 #include "vec2.h"
 
 #include <string.h>
@@ -147,8 +148,8 @@ wav_data_t dft_data_to_wav(smrt_arena_t *arena, dft_data_t dft, u64 sample_rate,
 stft_data_t short_time_fourier_transform(smrt_arena_t *arena, u64 window_size, u64 hop_size, f64 *samples, u64 sample_count, u64 sample_rate) {
     assert(F64_EQ(round(log2(window_size)), log2(window_size), 1e-9) &&
            "STFT input window_size must be a power of 2");
-    assert(sample_count % window_size == 0 &&
-           "Sample count must evenly divide into window_size chunks");
+
+    sample_count = ALIGN_UP_POW2(sample_count, window_size);
 
     u64 segment_count = ((sample_count - window_size) / hop_size) + 1;
 

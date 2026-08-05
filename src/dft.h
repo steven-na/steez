@@ -43,10 +43,12 @@ typedef struct {
 } stft_data_t;
 
 /// Run STFT algorithm on samples, sliding a window_size window by hop_size each step
+/// Warning: This function assumes that samples' allocation is large enough to fit
+/// ALIGN_UP_POW2(sample_count, window_size) elements.
 stft_data_t short_time_fourier_transform(smrt_arena_t *        arena ,
                                                     u64  window_size ,
                                                     u64     hop_size ,
-                                                  f64 *      samples ,
+                                                    f64 *    samples ,
                                                     u64 sample_count ,
                                                     u64  sample_rate);
 
