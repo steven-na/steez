@@ -39,7 +39,10 @@ typedef struct {
 typedef struct {
     stft_segment_t *    segments;
                u64 segment_count;
+               u64   window_size;
+               u64      hop_size;
                u64   sample_rate;
+               u64 total_samples;
 } stft_data_t;
 
 /// Byte alignment required for a samples buffer to safely back
@@ -59,6 +62,9 @@ stft_data_t short_time_fourier_transform(smrt_arena_t *        arena ,
                                                     u64  sample_rate);
 
 /// Run inverse FFT on a complex spectrum (real/imag, length sample_count).
+/// No 1/N normalization is applied here: real/imag must already be a correctly-scaled
+/// full N-point spectrum (e.g. as produced by reconstruct_spectrum), not a raw
+/// forward-FFT output, or the result will be off by a factor of N.
 /// Pass NULL for either out-param to skip allocating/returning that component
 void inverse_fast_fourier_transform(smrt_arena_t *      arena ,
                                     f64 const *          real ,
@@ -68,11 +74,9 @@ void inverse_fast_fourier_transform(smrt_arena_t *      arena ,
                                     f64 **             imag_o ,
                   smrt_arena_t **conflicts, u64 num_conflicts);
 
-/// Reconstruct samples from STFT data via overlap-add inverse FFT synthesis
+/// Reconstruct samples from STFT data via overlap-add inverse FFT synthesis.
 f64 *inverse_short_time_fourier_transform( smrt_arena_t *         arena ,
                                               stft_data_t          stft ,
-                                                      u64   window_size ,
-                                                      u64      hop_size ,
                             smrt_arena_t **conflicts, u64 num_conflicts);
 
 /// Reconstruct a full N-point complex spectrum from one-sided DFT amplitude/phase data

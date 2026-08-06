@@ -44,11 +44,11 @@ typedef struct {
 
 /// Load WAV data from wav_file. Data will be allocated on arena, with allocation
 /// size aligned up to align_up_memoryn.
-wav_data_t load_wav_file(smrt_arena_t *   arena ,
-                                 FILE *wav_file ,
-                   wav_master_chunk_t *master_o ,
-                      wav_fmt_chunk_t *format_o ,
-                                   u64 align_up_memoryn);
+wav_data_t load_wav_file(smrt_arena_t *          arena ,
+                                 FILE *       wav_file ,
+                   wav_master_chunk_t *       master_o ,
+                      wav_fmt_chunk_t *       format_o ,
+                                  u64 align_up_memoryn);
 
 /// Write WAV headers and data to wav_file.
 b32 write_wav_file(FILE *   wav_file ,
@@ -61,14 +61,14 @@ wav_fmt_chunk_t make_wav_fmt_chunk(u32    num_channels ,
                                    u16 bits_per_sample);
 
 /// Load WAV data into [-1.0, 1.0] f64 amplitudes. Populates -o inputs with information.
-/// samples will be amplitude data for each channel from the WAV file, of length sample_count.
+/// samples will be amplitude data for each channel from the WAV file, of length sample_count
 /// align_up_memoryn will align allocation up to nearest multiple (For FFT)
 void              wav_load(smrt_arena_t *arena, FILE *wav, f64 ***    samples_o ,
                                                            u16 *channel_count_o ,
                                                            u64 * sample_count_o ,
                                                            u32 *  sample_rate_o ,
                                                            u64 align_up_memoryn ,
-                                 smrt_arena_t **conflicts, u64    num_conflicts );
+                                 smrt_arena_t **conflicts, u64    num_conflicts);
 
 f64 *       read_8bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel, u64 align_up_memoryn);
 f64 *      read_16bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 channel, u64 align_up_memoryn);

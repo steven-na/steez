@@ -13,7 +13,7 @@
 #endif // !PI
 
 #ifndef F64_EPSILON
-#define F64_EPSILON = 1e-9
+#define F64_EPSILON 1e-9
 #endif // !F64_EPSILON
 
 #define F64_EQ(x, y, eps) (fabs((x) - (y)) <= (eps))

@@ -254,9 +254,11 @@ f64 *read_32bps_float_data(smrt_arena_t *arena, wav_data_t data, u16 num_channel
         u8   two = data.samples[(i*4*num_channels)+1+channel*4];
         u8 three = data.samples[(i*4*num_channels)+2+channel*4];
         u8  four = data.samples[(i*4*num_channels)+3+channel*4];
-        u32 intermediate = one | two << 8 | three << 16 | four << 24;
+        u32 intermediate = one | two << 8 | three << 16 | (u32)four << 24;
 
-        memcpy(&vs[i], &intermediate, sizeof(u32));
+        f32 f;
+        memcpy(&f, &intermediate, sizeof(f32));
+        vs[i] = (f64)f;
     }
 
     return vs;

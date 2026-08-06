@@ -340,3 +340,126 @@ Test(wav, write_sine, .init = write_sine_setup, .fini = write_sine_teardown) {
 
     smrt_arena_destroy(arena);
 }
+
+static char float32_wav_path[] = "/tmp/steez_testwav_f32_XXXXXX";
+static int float32_wav_fd;
+
+void float32_wav_setup(void) {
+    float32_wav_fd = mkstemp(float32_wav_path);
+    cr_assert_geq(float32_wav_fd, 0, "mkstemp failed");
+}
+
+void float32_wav_teardown(void) {
+    unlink(float32_wav_path);
+    close(float32_wav_fd);
+}
+
+Test(wav, read_32bps_float_round_trip, .init = float32_wav_setup, .fini = float32_wav_teardown) {
+    FILE *wav_file = fdopen(float32_wav_fd, "wb");
+    cr_assert_not_null(wav_file);
+
+    smrt_arena_t *arena = smrt_arena_create(KiB(64), KiB(4), false);
+
+    f32 expected[5] = { 0.0f, 0.5f, -0.5f, 1.0f, -1.0f };
+    u64 sample_count = 5;
+
+    wav_data_t data;
+    data.samples = (u8*)expected;
+    data.sample_count = sample_count;
+
+    wav_fmt_chunk_t fmtchunk = make_wav_fmt_chunk(1, 44100, 32);
+    fmtchunk.audio_format = 3; // IEEE 754 float
+
+    cr_assert(write_wav_file(wav_file, &fmtchunk, data));
+
+    fclose(wav_file);
+
+    FILE *readback_file = fopen(float32_wav_path, "rb");
+    cr_assert_not_null(readback_file);
+
+    wav_master_chunk_t mchunk;
+    wav_fmt_chunk_t  read_fmtchunk;
+
+    wav_data_t read_data = load_wav_file(arena, readback_file, &mchunk, &read_fmtchunk, sizeof(f64));
+
+    fclose(readback_file);
+
+    cr_expect_eq(read_fmtchunk.audio_format, 3);
+    cr_expect_eq(read_fmtchunk.bits_per_sample, 32);
+    cr_assert_not_null(read_data.samples);
+    cr_expect_eq(read_data.sample_count, sample_count);
+
+    f64 *decoded = read_32bps_float_data(arena, read_data, 1, 0, sizeof(f64));
+    cr_assert_not_null(decoded);
+
+    for (u64 i = 0; i < sample_count; i++) {
+        cr_expect(F64_EQ(decoded[i], (f64)expected[i], 1e-6));
+    }
+
+    smrt_arena_destroy(arena);
+}
+
+static char pcm24_wav_path[] = "/tmp/steez_testwav_24bit_XXXXXX";
+static int pcm24_wav_fd;
+
+void pcm24_wav_setup(void) {
+    pcm24_wav_fd = mkstemp(pcm24_wav_path);
+    cr_assert_geq(pcm24_wav_fd, 0, "mkstemp failed");
+}
+
+void pcm24_wav_teardown(void) {
+    unlink(pcm24_wav_path);
+    close(pcm24_wav_fd);
+}
+
+Test(wav, read_24bps_round_trip, .init = pcm24_wav_setup, .fini = pcm24_wav_teardown) {
+    FILE *wav_file = fdopen(pcm24_wav_fd, "wb");
+    cr_assert_not_null(wav_file);
+
+    smrt_arena_t *arena = smrt_arena_create(KiB(64), KiB(4), false);
+
+    i32 expected[4] = { 0, 4194304 /* +0.5 */, -4194304 /* -0.5 */, 8388607 /* max */ };
+    u64 sample_count = 4;
+
+    u8 raw[4*3];
+    for (u64 i = 0; i < sample_count; i++) {
+        i32 v = expected[i];
+        raw[i*3+0] = (u8)( v        & 0xFF);
+        raw[i*3+1] = (u8)((v >> 8)  & 0xFF);
+        raw[i*3+2] = (u8)((v >> 16) & 0xFF);
+    }
+
+    wav_data_t data;
+    data.samples = raw;
+    data.sample_count = sample_count;
+
+    wav_fmt_chunk_t fmtchunk = make_wav_fmt_chunk(1, 44100, 24);
+
+    cr_assert(write_wav_file(wav_file, &fmtchunk, data));
+
+    fclose(wav_file);
+
+    FILE *readback_file = fopen(pcm24_wav_path, "rb");
+    cr_assert_not_null(readback_file);
+
+    wav_master_chunk_t mchunk;
+    wav_fmt_chunk_t  read_fmtchunk;
+
+    wav_data_t read_data = load_wav_file(arena, readback_file, &mchunk, &read_fmtchunk, sizeof(f64));
+
+    fclose(readback_file);
+
+    cr_expect_eq(read_fmtchunk.bits_per_sample, 24);
+    cr_assert_not_null(read_data.samples);
+    cr_expect_eq(read_data.sample_count, sample_count);
+
+    f64 *decoded = read_24bps_data(arena, read_data, 1, 0, sizeof(f64));
+    cr_assert_not_null(decoded);
+
+    for (u64 i = 0; i < sample_count; i++) {
+        f64 expected_amplitude = (f64)expected[i] / (f64)(0b1 << 23);
+        cr_expect(F64_EQ(decoded[i], expected_amplitude, 1e-9));
+    }
+
+    smrt_arena_destroy(arena);
+}

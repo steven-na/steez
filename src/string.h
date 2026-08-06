@@ -17,4 +17,4 @@ strng_t * strng_dup(smrt_arena_t *arena, strng_t const *src);
     b32   strng_set(strng_t *string, char const *c);
    void strng_clear(strng_t *string);
 
-#define STRNG_FMT(s) (int)s->len, (char *)((u8*)s+STRNG_BASE_POS)
+#define STRNG_FMT(s) (i32)s->len, (char *)((u8*)s+STRNG_BASE_POS)

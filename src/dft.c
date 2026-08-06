@@ -139,6 +139,7 @@ wav_data_t dft_data_to_wav(smrt_arena_t *arena, dft_data_t dft, u64 sample_rate,
             f64 p = dft.phases[freq_index];
             amp += cos((t * f * 2.0 * PI) + p) * a;
         }
+        amp = amp < -1.0 ? -1.0 : amp > 1.0 ? 1.0 : amp;
         data[s_num] = (u8)((amp+1.0) * (UINT8_MAX/2));
     }
 
@@ -148,8 +149,11 @@ wav_data_t dft_data_to_wav(smrt_arena_t *arena, dft_data_t dft, u64 sample_rate,
 stft_data_t short_time_fourier_transform(smrt_arena_t *arena, u64 window_size, u64 hop_size, f64 *samples, u64 sample_count, u64 sample_rate) {
     assert(F64_EQ(round(log2(window_size)), log2(window_size), 1e-9) &&
            "STFT input window_size must be a power of 2");
+    assert(hop_size != 0 && "STFT input hop_size must be nonzero");
 
     sample_count = ALIGN_UP_POW2(sample_count * sizeof(f64), STFT_SAMPLE_ALIGN_BYTES(window_size)) / sizeof(f64);
+
+    assert(sample_count >= window_size && "STFT input sample_count must be at least window_size");
 
     u64 segment_count = ((sample_count - window_size) / hop_size) + 1;
 
@@ -179,8 +183,11 @@ stft_data_t short_time_fourier_transform(smrt_arena_t *arena, u64 window_size, u
 
     return (stft_data_t){
         .sample_rate=sample_rate,
+        .window_size=window_size,
+        .hop_size=hop_size,
         .segment_count=segment_count,
         .segments=segments,
+        .total_samples=sample_count,
     };
 }
 
@@ -233,10 +240,13 @@ void inverse_fast_fourier_transform(smrt_arena_t *arena, f64 const *real, f64 co
     smrta_scratch_end(scratch);
 }
 
-f64 *inverse_short_time_fourier_transform(smrt_arena_t *arena, stft_data_t stft,  u64 window_size, u64 hop_size, smrt_arena_t **conflicts, u64 num_conflicts) {
+f64 *inverse_short_time_fourier_transform(smrt_arena_t *arena, stft_data_t stft, smrt_arena_t **conflicts, u64 num_conflicts) {
+    u64 window_size = stft.window_size;
+    u64    hop_size = stft.hop_size;
+
     smrta_temp_t scratch = smrta_scratch_start(conflicts, num_conflicts);
 
-    u64 output_len = (stft.segment_count - 1) * hop_size + window_size;
+    u64 output_len = stft.total_samples;
 
     dft_data_t *frames = SMRTA_ALLOC_ARRAY(scratch.arena, dft_data_t, stft.segment_count);
 
@@ -277,6 +287,9 @@ f64 *inverse_short_time_fourier_transform(smrt_arena_t *arena, stft_data_t stft,
 }
 
 void reconstruct_spectrum(smrt_arena_t *arena, dft_data_t const *data, u64 sample_count, f64 **real_o, f64 **imag_o) {
+    assert(data->freq_count == (sample_count / 2) + 1 &&
+           "reconstruct_spectrum: data->freq_count must equal (sample_count / 2) + 1");
+
     f64 *real = *real_o = SMRTA_ALLOC_ARRAY(arena, f64, sample_count);
     f64 *imag = *imag_o = SMRTA_ALLOC_ARRAY(arena, f64, sample_count);
 

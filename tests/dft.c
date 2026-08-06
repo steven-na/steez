@@ -1,6 +1,7 @@
 #include "../src/dft.h"
 
 #include <math.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -351,6 +352,56 @@ Test(dft, reconstruct_spectrum_mirrors_conjugate) {
     smrt_arena_destroy(arena);
 }
 
+Test(dft, data_to_wav_clamps_out_of_range_amplitude) {
+    smrt_arena_t *arena = smrt_arena_create(KiB(16), KiB(4), false);
+
+    // two in-phase DC-like bins summing to 1.6, well outside [-1, 1]
+    dft_data_t dft = { .freq_count = 2 };
+    dft.frequencies = SMRTA_ALLOC_ARRAY(arena, f64, 2);
+    dft.amplitudes  = SMRTA_ALLOC_ARRAY(arena, f64, 2);
+    dft.phases      = SMRTA_ALLOC_ARRAY(arena, f64, 2);
+    dft.frequencies[0] = 0.0; dft.amplitudes[0] = 0.8; dft.phases[0] = 0.0;
+    dft.frequencies[1] = 0.0; dft.amplitudes[1] = 0.8; dft.phases[1] = 0.0;
+
+    wav_data_t wav = dft_data_to_wav(arena, dft, 8, 1.0);
+
+    cr_assert_eq(wav.sample_count, 8);
+    for (u64 i = 0; i < wav.sample_count; i++) {
+        // matches the clamped-amp=1.0 case in data_to_wav_varies_with_time:
+        // (1.0 + 1.0) * (UINT8_MAX/2 truncated to 127) = 254
+        cr_expect_eq(wav.samples[i], 254);
+    }
+
+    smrt_arena_destroy(arena);
+}
+
+Test(dft, stft_rejects_zero_hop_size, .signal = SIGABRT) {
+    smrt_arena_t *arena = smrt_arena_create(KiB(16), KiB(4), false);
+
+    f64 samples[8] = { 0 };
+    short_time_fourier_transform(arena, 8, 0, samples, 8, 8);
+}
+
+Test(dft, stft_rejects_zero_sample_count, .signal = SIGABRT) {
+    smrt_arena_t *arena = smrt_arena_create(KiB(16), KiB(4), false);
+
+    f64 samples[1] = { 0 };
+    short_time_fourier_transform(arena, 8, 4, samples, 0, 8);
+}
+
+Test(dft, reconstruct_spectrum_rejects_mismatched_freq_count, .signal = SIGABRT) {
+    smrt_arena_t *arena = smrt_arena_create(KiB(16), KiB(4), false);
+
+    // sample_count=8 expects freq_count == 5; give it 3 instead
+    dft_data_t data = { .freq_count = 3 };
+    data.frequencies = SMRTA_ALLOC_ARRAY(arena, f64, 3);
+    data.amplitudes  = SMRTA_ALLOC_ARRAY(arena, f64, 3);
+    data.phases      = SMRTA_ALLOC_ARRAY(arena, f64, 3);
+
+    f64 *real_o, *imag_o;
+    reconstruct_spectrum(arena, &data, 8, &real_o, &imag_o);
+}
+
 Test(dft, istft_round_trip_recovers_samples) {
     smrt_arena_t *arena = smrt_arena_create(MiB(1), KiB(4), false);
 
@@ -362,7 +413,7 @@ Test(dft, istft_round_trip_recovers_samples) {
     stft_data_t stft = short_time_fourier_transform(arena, window_size, hop_size, samples, sample_count, sample_rate);
     cr_assert_eq(stft.segment_count, 7);
 
-    f64 *output = inverse_short_time_fourier_transform(arena, stft, window_size, hop_size, NULL, 0);
+    f64 *output = inverse_short_time_fourier_transform(arena, stft, NULL, 0);
 
     for (u64 i = 0; i < sample_count; i++) {
         cr_expect(F64_EQ(output[i], samples[i], 1e-9));
