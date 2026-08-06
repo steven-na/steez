@@ -1,7 +1,9 @@
 #include "dft.h"
 #include "common.h"
+#include "smrt_arena.h"
 #include "vec2.h"
 
+#include <math.h>
 #include <string.h>
 
 dft_data_t discrete_fourier_transform(smrt_arena_t *arena, f64 *samples, u64 sample_count, u64 sample_rate) {
@@ -45,6 +47,17 @@ dft_data_t discrete_fourier_transform(smrt_arena_t *arena, f64 *samples, u64 sam
         return d;
 }
 
+static inline f64 hann_window(u64 i, u64 n) {
+    return 0.5 * (1.0 - cos((f64)i / n * 2.0 * PI));
+}
+
+// Mean value of hann_window over a full period; short_time_fourier_transform scales
+// analysis amplitudes up by 1/HANN_COHERENT_GAIN to compensate for the window's
+// attenuation, so inverse_short_time_fourier_transform must scale back down by
+// HANN_COHERENT_GAIN before resynthesizing, or the reconstructed signal comes out
+// 1/HANN_COHERENT_GAIN times too loud.
+#define HANN_COHERENT_GAIN 0.5
+
 static inline u64 bit_reverse(u64 n, u8 m) {
     u64 out = 0;
     for (u64 i = 0; i < m; i++) {
@@ -83,8 +96,8 @@ dft_data_t fast_fourier_transform(smrt_arena_t *arena, f64 *samples, u64 sample_
             vec2d_t w = VEC2D_FROM(1.0, 0.0);
 
             for (u64 j = 0; j < n; j++) {
-                vec2d_t t = vec2d_cmul(w, vec2d_soa_get(&vs, k + j + n));
                 vec2d_t u = vec2d_soa_get(&vs, k + j);
+                vec2d_t t = vec2d_cmul(w, vec2d_soa_get(&vs, k + j + n));
 
                 vec2d_soa_set(&vs, k + j    , vec2d_add(u, t));
                 vec2d_soa_set(&vs, k + j + n, vec2d_sub(u, t));
@@ -165,6 +178,14 @@ stft_data_t short_time_fourier_transform(smrt_arena_t *arena, u64 window_size, u
 
         f64 *seg_samples = samples + start;
 
+        smrta_temp_t scratch = smrta_scratch_start(NULL, 0);
+
+        f64 *seg_hann = SMRTA_ALLOC_ARRAY(scratch.arena, f64, window_size);
+
+        for (u64 h = 0; h < window_size; h++) {
+            seg_hann[h] = seg_samples[h] * hann_window(h, window_size);
+        }
+
         stft_segment_t seg = {
             .start_index = start,
             .sample_count = window_size,
@@ -172,11 +193,17 @@ stft_data_t short_time_fourier_transform(smrt_arena_t *arena, u64 window_size, u
 
         seg.data = fast_fourier_transform(
             arena,
-            seg_samples,
+            seg_hann,
             window_size,
             sample_rate,
             NULL, 0
         );
+
+        for (u64 a = 0; a < seg.data.freq_count; a++) {
+            seg.data.amplitudes[a] /= HANN_COHERENT_GAIN;
+        }
+
+        smrta_scratch_end(scratch);
 
         segments[i] = seg;
     }
@@ -260,8 +287,16 @@ f64 *inverse_short_time_fourier_transform(smrt_arena_t *arena, stft_data_t stft,
     for (u64 k = 0;  k < stft.segment_count; k++) {
         smrt_arena_mark(scratch.arena);
 
+        // Undo short_time_fourier_transform's coherent-gain compensation (a copy, so
+        // the caller's stft.segments data is left untouched for repeated/analysis use).
+        dft_data_t seg = frames[k];
+        seg.amplitudes = SMRTA_ALLOC_ARRAY(scratch.arena, f64, seg.freq_count);
+        for (u64 a = 0; a < seg.freq_count; a++) {
+            seg.amplitudes[a] = frames[k].amplitudes[a] * HANN_COHERENT_GAIN;
+        }
+
         f64 *spec_real, *spec_imag;
-        reconstruct_spectrum(scratch.arena, &frames[k], window_size, &spec_real, &spec_imag);
+        reconstruct_spectrum(scratch.arena, &seg, window_size, &spec_real, &spec_imag);
 
         f64 *real_o;
         inverse_fast_fourier_transform(scratch.arena, spec_real, spec_imag, window_size, &real_o, NULL, NULL, 0);
@@ -269,8 +304,9 @@ f64 *inverse_short_time_fourier_transform(smrt_arena_t *arena, stft_data_t stft,
         u64 start = k * hop_size;
 
         for (u64 j = 0; j < window_size; j++) {
-            output[start + j] += real_o[j];
-            weights[start + j] += 1.0;
+            f64 w = hann_window(j, window_size);
+            output[start + j]  += real_o[j] * w;
+            weights[start + j] += w * w;
         }
 
         smrt_arena_pop_to_mark(scratch.arena);

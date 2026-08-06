@@ -8,6 +8,7 @@
 #include <criterion/criterion.h>
 #include <criterion/internal/assert.h>
 #include <criterion/internal/test.h>
+#include <criterion/redirect.h>
 
 f64 *mock_amplitude_data(smrt_arena_t *arena, f64 *freqs, f64 *amps, u64 n, f64 duration, u64 sample_count) {
     f64 *samples = SMRTA_ALLOC_ARRAY(arena, f64, sample_count);
@@ -197,21 +198,37 @@ Test(dft, stft_segments_match_direct_transform) {
 
     u64 expected_starts[3] = { 0, 4, 8 };
 
+    // short_time_fourier_transform hann-windows each segment before transforming it, then
+    // scales amplitudes by 1/HANN_COHERENT_GAIN (0.5) to compensate for the window's average
+    // attenuation. Mirror both steps here to build a comparable direct transform of the same
+    // windowed data, rather than comparing against a direct transform of the raw slice.
     for (u64 s = 0; s < stft.segment_count; s++) {
         stft_segment_t seg = stft.segments[s];
         cr_expect_eq(seg.start_index, expected_starts[s]);
         cr_expect_eq(seg.sample_count, window_size);
 
-        dft_data_t direct = discrete_fourier_transform(arena, samples + seg.start_index, window_size, sample_rate);
+        f64 windowed[8];
+        for (u64 h = 0; h < window_size; h++) {
+            f64 hann = 0.5 * (1.0 - cos((f64)h / window_size * 2.0 * PI));
+            windowed[h] = samples[seg.start_index + h] * hann;
+        }
+
+        dft_data_t direct = discrete_fourier_transform(arena, windowed, window_size, sample_rate);
 
         cr_assert_eq(seg.data.freq_count, direct.freq_count);
         for (u64 i = 0; i < direct.freq_count; i++) {
-            cr_expect(F64_EQ(seg.data.frequencies[i], direct.frequencies[i], 1e-9));
-            cr_expect(F64_EQ(seg.data.amplitudes[i],  direct.amplitudes[i],  1e-9));
+            f64 expected_amplitude = direct.amplitudes[i] / 0.5; // undo HANN_COHERENT_GAIN
 
-            // phase is only meaningful at bins with non-negligible amplitude
+            cr_expect(F64_EQ(seg.data.frequencies[i], direct.frequencies[i], 1e-9));
+            cr_expect(F64_EQ(seg.data.amplitudes[i],  expected_amplitude,    1e-9));
+
+            // phase is only meaningful at bins with non-negligible amplitude. Compare
+            // angles modulo 2*PI: atan2 can return either +PI or -PI for the same angle,
+            // which a plain subtraction would wrongly see as a ~2*PI difference.
             if (direct.amplitudes[i] > 1e-6) {
-                cr_expect(F64_EQ(seg.data.phases[i], direct.phases[i], 1e-9));
+                f64 phase_diff = seg.data.phases[i] - direct.phases[i];
+                phase_diff -= 2.0 * PI * round(phase_diff / (2.0 * PI));
+                cr_expect(F64_EQ(phase_diff, 0.0, 1e-9));
             }
         }
     }
@@ -376,6 +393,8 @@ Test(dft, data_to_wav_clamps_out_of_range_amplitude) {
 }
 
 Test(dft, stft_rejects_zero_hop_size, .signal = SIGABRT) {
+    cr_redirect_stderr(); // assert() prints to stderr before aborting; that's expected
+
     smrt_arena_t *arena = smrt_arena_create(KiB(16), KiB(4), false);
 
     f64 samples[8] = { 0 };
@@ -383,6 +402,8 @@ Test(dft, stft_rejects_zero_hop_size, .signal = SIGABRT) {
 }
 
 Test(dft, stft_rejects_zero_sample_count, .signal = SIGABRT) {
+    cr_redirect_stderr(); // assert() prints to stderr before aborting; that's expected
+
     smrt_arena_t *arena = smrt_arena_create(KiB(16), KiB(4), false);
 
     f64 samples[1] = { 0 };
@@ -390,6 +411,8 @@ Test(dft, stft_rejects_zero_sample_count, .signal = SIGABRT) {
 }
 
 Test(dft, reconstruct_spectrum_rejects_mismatched_freq_count, .signal = SIGABRT) {
+    cr_redirect_stderr(); // assert() prints to stderr before aborting; that's expected
+
     smrt_arena_t *arena = smrt_arena_create(KiB(16), KiB(4), false);
 
     // sample_count=8 expects freq_count == 5; give it 3 instead
@@ -415,7 +438,12 @@ Test(dft, istft_round_trip_recovers_samples) {
 
     f64 *output = inverse_short_time_fourier_transform(arena, stft, NULL, 0);
 
-    for (u64 i = 0; i < sample_count; i++) {
+    // Sample 0 is inherently unrecoverable: periodic hann_window(0, window_size) == 0,
+    // so the analysis window zeroes out samples[0]'s contribution before it ever reaches
+    // the FFT, and no other segment covers index 0 to make up for it. Every other sample
+    // is covered by a segment with a nonzero window weight, which weighted overlap-add
+    // recovers exactly.
+    for (u64 i = 1; i < sample_count; i++) {
         cr_expect(F64_EQ(output[i], samples[i], 1e-9));
     }
 
