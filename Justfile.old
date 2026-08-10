@@ -18,23 +18,23 @@ gen-version type="release":
 
 build-static: (gen-version "release")
     mkdir -p {{build_dir}}
-    cd {{build_dir}} && {{cc}} {{cflags}} {{extra_cflags}} -c ../{{src_dir}}/unity.c
+    cd {{build_dir}} && {{cc}} {{cflags}} {{extra_cflags}} -c ../{{src_dir}}/*.c
     ar rcs {{build_dir}}/lib{{lib}}.a {{build_dir}}/*.o
 
 build-shared: (gen-version "release")
     mkdir -p {{build_dir}}
-    cd {{build_dir}} && {{cc}} {{cflags}} {{extra_cflags}} -c ../{{src_dir}}/unity.c
+    cd {{build_dir}} && {{cc}} {{cflags}} {{extra_cflags}} -c ../{{src_dir}}/*.c
     {{cc}} -shared -o {{build_dir}}/lib{{lib}}.so {{build_dir}}/*.o {{lflags}}
 
 build-release: (gen-version "release")
     mkdir -p {{build_dir}}
-    cd {{build_dir}} && {{cc}} {{cflags}} {{extra_cflags}} -O3 -DNDEBUG -c ../{{src_dir}}/unity.c
+    cd {{build_dir}} && {{cc}} {{cflags}} {{extra_cflags}} -O3 -DNDEBUG -c ../{{src_dir}}/*.c
     ar rcs {{build_dir}}/lib{{lib}}-release.a {{build_dir}}/*.o
     {{cc}} -shared -o {{build_dir}}/lib{{lib}}-release.so {{build_dir}}/*.o {{lflags}}
 
 build-debug: (gen-version "debug")
     mkdir -p {{build_dir}}
-    cd {{build_dir}} && {{cc}} {{cflags}} {{extra_cflags}} -g -O0 -fsanitize=address,undefined -fno-omit-frame-pointer -c ../{{src_dir}}/unity.c
+    cd {{build_dir}} && {{cc}} {{cflags}} {{extra_cflags}} -g -O0 -fsanitize=address,undefined -fno-omit-frame-pointer -c ../{{src_dir}}/*.c
     ar rcs {{build_dir}}/lib{{lib}}-debug.a {{build_dir}}/*.o
     {{cc}} -shared -fsanitize=address,undefined -o {{build_dir}}/lib{{lib}}-debug.so {{build_dir}}/*.o {{lflags}}
 
@@ -81,13 +81,13 @@ uninstall-vendor dir:
 
 test-all: (gen-version "debug")
     mkdir -p {{build_dir}}
-    {{cc}} {{cflags}} {{extra_cflags}} {{test_dir}}/*.c {{src_dir}}/unity.c -o {{build_dir}}/test -lcriterion {{lflags}}
+    {{cc}} {{cflags}} {{extra_cflags}} {{test_dir}}/*.c {{src_dir}}/*.c -o {{build_dir}}/test -lcriterion {{lflags}}
     ./{{build_dir}}/test
 
 coverage: (gen-version "debug")
     mkdir -p {{build_dir}}/cov-src {{build_dir}}/cov-tests
-    cd {{build_dir}}/cov-src && {{cc}} {{cflags}} --coverage -c ../../{{src_dir}}/unity.c
-    cd {{build_dir}}/cov-tests && {{cc}} {{cflags}} --coverage -c ../../{{test_dir}}/unity.c
+    cd {{build_dir}}/cov-src && {{cc}} {{cflags}} --coverage -c ../../{{src_dir}}/*.c
+    cd {{build_dir}}/cov-tests && {{cc}} {{cflags}} --coverage -c ../../{{test_dir}}/*.c
     {{cc}} {{cflags}} --coverage {{build_dir}}/cov-src/*.o {{build_dir}}/cov-tests/*.o -o {{build_dir}}/test-coverage -lcriterion {{lflags}}
     ./{{build_dir}}/test-coverage
     gcovr --root . --filter '{{src_dir}}/' {{build_dir}}/cov-src --html-details {{build_dir}}/coverage.html --print-summary

@@ -1,12 +1,13 @@
 #if defined(__linux__)
-#define _DEFAULT_SOURCE
+    #ifndef _DEFAULT_SOURCE
+        #define _DEFAULT_SOURCE
+    #endif /* ifndef _DEFAULT_SOURCE */
 #endif
 
 #include "common.h"
 #include "smrt_arena.h"
 
 #include <string.h>
-
 
 static __thread smrt_arena_t *_scratch_pool[SCRATCH_POOL_SIZE] = { 0 };
 
