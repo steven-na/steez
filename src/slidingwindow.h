@@ -12,7 +12,7 @@ typedef struct {
      u64 element_size_bytes;
 } sliding_window_array_t;
 
-#define SMRTA_ALLOC_SLIDINGWINDOW(arena, T, n) (sliding_window_array_t*)sw_create(arena, sizeof(T), (n))
+#define SMRTA_ALLOC_SLIDINGWINDOW(arena, T, n) (sliding_window_array_t*)sw_create((arena), sizeof(T), (n))
 #define SLIDINGWINDOW_GET(w, T) ((T*)((u8*)(w) + SLIDING_WINDOW_BASE_POS) + (w)->start_idx)
 
 sliding_window_array_t *sw_create(smrt_arena_t *arena, u64 elem_size, u64 size);

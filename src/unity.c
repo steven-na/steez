@@ -20,6 +20,7 @@
 #include "vec2.c"
 #include "slidingwindow.c"
 #include "vec2sw.c"
+#include "deque.c"
 
 // DSP/Audio
 #include "wav.c"
