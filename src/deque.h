@@ -17,7 +17,7 @@ typedef struct {
      u64 element_size_bytes;
 } ez_deque_t;
 
-#define SMRTA_ALLOC_EZDEQUE(arena, T, n) (ez_deque_t*)ez_deq_create((arena), sizeof(T), (n))
+#define SMRTA_ALLOC_EZDEQUE(arena, T, n) (ez_deque_t*)ez_deque_create((arena), sizeof(T), (n))
 
 ez_deque_t *ez_deque_create(smrt_arena_t *arena, u64 elem_size, u64 size);
 
