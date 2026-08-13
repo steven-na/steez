@@ -26,7 +26,7 @@ ez_deque_t *ez_deque_create(smrt_arena_t *arena, u64 elem_size, u64 size);
 // Returns deque backed memory. Copy if needed.
       void *   ez_deque_pop(ez_deque_t *q);
 
-// Thread-safe deque (SPMC)
+// Thread-safe deque (MPMC)
 // Does not own queue
 typedef struct {
      ez_deque_t *     queue;

@@ -27,4 +27,5 @@
 #include "dft.c"
 
 // Misc
+#include "log.c"
 #include "version.c"
