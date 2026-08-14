@@ -37,11 +37,12 @@ void *ez_deque_pop(ez_deque_t *q) {
     return (u8*)q + pop_pos;
 }
 
-ts_deque_t ts_deque_create(ez_deque_t *q) {
-    pthread_mutex_t *m = malloc(sizeof(pthread_mutex_t));
-    *m = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+// Sync constructs are allocated on arena
+ts_deque_t ts_deque_create(smrt_arena_t *arena, ez_deque_t *q) {
+    pthread_mutex_t *m = smrt_arena_push(arena, sizeof(pthread_mutex_t), true);
+    pthread_mutex_init(m, NULL);
 
-    sem_t *s = malloc(sizeof(sem_t));
+    sem_t *s = smrt_arena_push(arena, sizeof(sem_t), true);
     sem_init(s, 0, 0);
 
     return (ts_deque_t){
@@ -53,9 +54,7 @@ ts_deque_t ts_deque_create(ez_deque_t *q) {
 
 void ts_deque_destroy(ts_deque_t tsq) {
     sem_destroy(tsq.count_sem);
-    free(tsq.count_sem);
     pthread_mutex_destroy(tsq.write_lock);
-    free(tsq.write_lock);
 }
 
 b32 ts_deque_enqueue(ts_deque_t tsq, void *elem) {

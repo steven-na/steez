@@ -34,7 +34,7 @@ pthread_mutex_t *write_lock;
           sem_t * count_sem;
 } ts_deque_t;
 
-ts_deque_t   ts_deque_create(ez_deque_t * q);
+ts_deque_t   ts_deque_create(smrt_arena_t *arena, ez_deque_t * q);
       void  ts_deque_destroy(ts_deque_t tsq);
 
 // Deal with re-enqueueing yourself
