@@ -62,7 +62,7 @@ thread_pool_t *tp_create(smrt_arena_t *arena, u64 max_jobs, u64 num_threads) {
     thread_pool_t *tp = smrt_arena_push(arena, sizeof(thread_pool_t), true);
 
     ez_deque_t *q = ez_deque_create(arena, sizeof(tp_job_t), max_jobs);
-    ts_deque_t tsq = ts_deque_create(q);
+    ts_deque_t tsq = ts_deque_create(arena, q);
 
     pthread_t *threads = SMRTA_ALLOC_ARRAY(arena, pthread_t, num_threads);
     worker_args * args = SMRTA_ALLOC_ARRAY(arena, worker_args, num_threads);
