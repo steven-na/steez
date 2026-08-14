@@ -6,7 +6,6 @@
 
 #include <bits/pthreadtypes.h>
 #include <pthread.h>
-#include <stdatomic.h>
 #include <string.h>
 
 typedef struct {

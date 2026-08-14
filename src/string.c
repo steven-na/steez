@@ -3,6 +3,7 @@
 #include "log.h"
 #include "string.h"
 
+#include <ctype.h>
 #include <string.h>
 
 strng_t *strng_new(smrt_arena_t *arena, u64 size) {
@@ -81,3 +82,17 @@ void strng_clear(strng_t *string) {
     memset((u8*)string+STRNG_BASE_POS, 0, string->len);
     string->len = 0;
 }
+
+strng_view_t sv_from_chars(char const* c) { u64 l = strlen(c);
+                                            return (strng_view_t){
+                                                .start=0,
+                                                .end=l,
+                                                .max=l,
+                                                .string=c, }; }
+
+void  sv_trim_left(strng_view_t *sv) { while (sv->start<=  sv->end && isspace(*(sv->string+sv->start)) ) sv->start++; }
+void sv_trim_right(strng_view_t *sv) { while (sv->end  >=sv->start && isspace(*(  sv->string+sv->end)) )   sv->end--; }
+void       sv_trim(strng_view_t *sv) { sv_trim_left(sv);
+                                      sv_trim_right(sv); }
+
+void sv_reset(strng_view_t *sv) { sv->end=sv->max; sv->start=0; }

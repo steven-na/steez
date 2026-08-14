@@ -10,7 +10,7 @@
     - [x] threadpool
     - [x] vec2sw
     - [x] wav
-- [ ] Add strng_view
+- [x] Add strng_view
     - want start, end, max_len, char*
 - [x] Make status return values consistent. i64, 0 success, -1 fail, >0 info if necessary
     - [x] Deque enqueue (both)
