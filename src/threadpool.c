@@ -2,12 +2,12 @@
 #include "threadpool.h"
 #include "smrt_arena.h"
 #include "deque.h"
+#include "log.h"
 
 #include <bits/pthreadtypes.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <string.h>
-
 
 typedef struct {
     tp_job_proc  proc;
@@ -20,19 +20,25 @@ thread_pool_t *tp;
 } worker_args;
 
 void *worker_proc(void *args) {
-    worker_args *wargs = (worker_args*)args;
-    thread_pool_t *tp = wargs->tp;
+    worker_args *w_args = (worker_args*)args;
+    thread_pool_t *tp = w_args->tp;
+
+    #ifndef NLOG_TRACE
+        log_trace("Spinning up thread %lu", w_args->id);
+    #endif /* ifndef NLOG_TRACE */
 
     pthread_mutex_lock(tp->count_mtx); {
         tp->num_alive++;
     } pthread_mutex_unlock(tp->count_mtx);
 
     for (;;) {
-        if (!wargs->tp->is_running) {
+        // if (!tp->is_running) break;
+        if (!w_args->tp->is_running) {
             break;
         }
 
-        tp_job_t *j = (tp_job_t*)ts_deque_pop(wargs->tp->jobs);
+
+        tp_job_t *j = (tp_job_t*)ts_deque_pop(tp->jobs);
 
         pthread_mutex_lock(tp->count_mtx);
         tp->num_active++;
@@ -45,9 +51,18 @@ void *worker_proc(void *args) {
         // If this is the last active thread finishing, tell someone about it
         if (!tp->num_active) {
             pthread_cond_broadcast(tp->done_signal);
+
+        #ifndef NLOG_TRACE
+            log_trace("[Thread %lu] Broadcasting complete", w_args->id);
+        #endif /* ifndef NLOG_TRACE */
+
         }
         pthread_mutex_unlock(tp->count_mtx);
     }
+
+    #ifndef NLOG_TRACE
+        log_trace("Spinning down thread %lu", w_args->id);
+    #endif /* ifndef NLOG_TRACE */
 
     pthread_mutex_lock(tp->count_mtx); {
         tp->num_alive--;
@@ -66,7 +81,7 @@ thread_pool_t *tp_create(smrt_arena_t *arena, u64 max_jobs, u64 num_threads) {
     // I just leak this into the arena
     worker_args * args = SMRTA_ALLOC_ARRAY(arena, worker_args, num_threads);
 
-    pthread_mutex_t *count_mtx = smrt_arena_push(arena, sizeof(pthread_cond_t), true);
+    pthread_mutex_t *count_mtx = smrt_arena_push(arena, sizeof(pthread_mutex_t), true);
     pthread_mutex_init(count_mtx, NULL);
     pthread_cond_t *all_done = smrt_arena_push(arena, sizeof(pthread_cond_t), true);
     pthread_cond_init(all_done, NULL);
@@ -94,12 +109,20 @@ thread_pool_t *tp_create(smrt_arena_t *arena, u64 max_jobs, u64 num_threads) {
 
     while (tp->num_alive != num_threads) {}
 
+    #ifndef NLOG_TRACE
+        log_trace("Created threadpool; thread count %lu", num_threads);
+    #endif /* ifndef NLOG_TRACE */
+
     return tp;
 }
 
 void no_op(void *nothing) { (void)nothing; }
 
 i32 tp_destroy(thread_pool_t *tp) {
+    #ifndef NLOG_TRACE
+        log_trace("Destroying threadpool");
+    #endif /* ifndef NLOG_TRACE */
+
     tp->is_running = false;
     for (;;) {
         // TODO: add timeout to skip this if a thread is hung
@@ -115,6 +138,9 @@ i32 tp_destroy(thread_pool_t *tp) {
     ts_deque_destroy(tp->jobs);
     pthread_mutex_destroy(tp->count_mtx);
     pthread_cond_destroy(tp->done_signal);
+    #ifndef NLOG_TRACE
+        log_trace("Destroyed threadpool");
+    #endif /* ifndef NLOG_TRACE */
     return 0;
 }
 
@@ -124,13 +150,25 @@ i32 tp_push_job(thread_pool_t *tp, tp_job_proc job, void *args) {
         .args = args,
     };
 
+    #ifndef NLOG_TRACE
+        log_trace("Pushing job %p with arg %p onto threadpool.", job, args);
+    #endif /* ifndef NLOG_TRACE */
+
     return ts_deque_enqueue(tp->jobs, &j);
 }
 
 void tp_wait(thread_pool_t *tp) {
+    #ifndef NLOG_TRACE
+        log_trace("Threadpool waiting for %lu jobs", tp->num_active + tp->jobs.queue->occupied);
+    #endif /* ifndef NLOG_TRACE */
+
     pthread_mutex_lock(tp->count_mtx);
     while (tp->jobs.queue->occupied || tp->num_active) {
         pthread_cond_wait(tp->done_signal, tp->count_mtx);
     }
     pthread_mutex_unlock(tp->count_mtx);
+
+    #ifndef NLOG_TRACE
+        log_trace("Threadpool finished waiting");
+    #endif /* ifndef NLOG_TRACE */
 }

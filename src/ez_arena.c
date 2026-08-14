@@ -1,4 +1,5 @@
 #include "ez_arena.h"
+#include "log.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -7,6 +8,7 @@ ez_arena_t *ez_arena_create(u64 size, b32 zero_out) {
     ez_arena_t *alloc = malloc(size + sizeof(ez_arena_t));
 
     if (!alloc) {
+        log_error("Failed to malloc arena memory");
         return NULL;
     }
 
@@ -15,6 +17,10 @@ ez_arena_t *ez_arena_create(u64 size, b32 zero_out) {
     }
 
     *alloc = (ez_arena_t){ .alloc_size = size, .pos = EZ_ARENA_BASE_POS };
+
+    #ifndef NLOG_TRACE
+        log_trace("Created ez_arena; size %lu", size);
+    #endif /* ifndef NLOG_TRACE */
 
     return alloc;
 }
@@ -55,4 +61,8 @@ void ez_arena_clear(ez_arena_t *arena, b32 zero_out) {
 
 void ez_arena_destroy(ez_arena_t *arena) {
     free(arena);
+
+    #ifndef NLOG_TRACE
+        log_trace("Destroyed ez_arena");
+    #endif /* ifndef NLOG_TRACE */
 }

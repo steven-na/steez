@@ -51,7 +51,7 @@ wav_data_t load_wav_file(smrt_arena_t *          arena ,
                                   u64 align_up_memoryn);
 
 /// Write WAV headers and data to wav_file.
-b32 write_wav_file(FILE *   wav_file ,
+i32 write_wav_file(FILE *   wav_file ,
         wav_fmt_chunk_t *fmt_chunk_i ,
              wav_data_t       data_i);
 

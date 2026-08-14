@@ -1,5 +1,6 @@
 #include "wav.h"
 #include "common.h"
+#include "log.h"
 #include "smrt_arena.h"
 
 #include <assert.h>
@@ -34,7 +35,10 @@ b32 seek_to_chunk(FILE *file, char const *chunk_name) {
 wav_data_t load_wav_file(smrt_arena_t *arena, FILE *wav_file, wav_master_chunk_t *master_o, wav_fmt_chunk_t *format_o, u64 align_up_memoryn) {
     wav_data_t data = { 0 };
 
-    if (!wav_file) return data;
+    if (!wav_file) {
+        log_error("NULL file passed into load_wav_file");
+        return data;
+    }
 
     fread(master_o, sizeof(wav_master_chunk_t), 1, wav_file);
 
@@ -44,7 +48,7 @@ wav_data_t load_wav_file(smrt_arena_t *arena, FILE *wav_file, wav_master_chunk_t
     {
         u16 f = format_o->audio_format;
         if (f != 1 && f != 3) {
-            perror("Attempted to read non pcm integer wave file.");
+            log_error("Attempted to read non pcm integer wave file.");
             return data;
         }
     }
@@ -56,7 +60,10 @@ wav_data_t load_wav_file(smrt_arena_t *arena, FILE *wav_file, wav_master_chunk_t
     fread(&sampled_data_size, 4, 1, wav_file);
 
     data.samples = smrt_arena_push(arena, ALIGN_UP_POW2(sampled_data_size, align_up_memoryn), true);
-    if (!data.samples) return data;
+    if (!data.samples) {
+        log_error("Failed to allocate samples");
+        return data;
+    }
 
     fread((u8*)data.samples, sampled_data_size, 1, wav_file);
     data.sample_count = sampled_data_size / ((format_o->bits_per_sample / 8) * format_o->num_channels);
@@ -64,8 +71,8 @@ wav_data_t load_wav_file(smrt_arena_t *arena, FILE *wav_file, wav_master_chunk_t
     return data;
 }
 
-b32 write_wav_file(FILE *wav_file, wav_fmt_chunk_t *fmt_chunk_i, wav_data_t data_i) {
-    if (!wav_file) return false;
+i32 write_wav_file(FILE *wav_file, wav_fmt_chunk_t *fmt_chunk_i, wav_data_t data_i) {
+    if (!wav_file) return -1;
 
     u32 data_size_bytes = data_i.sample_count * fmt_chunk_i->bytes_per_block;
 
@@ -82,7 +89,7 @@ b32 write_wav_file(FILE *wav_file, wav_fmt_chunk_t *fmt_chunk_i, wav_data_t data
     fwrite(&data_size_bytes, 4, 1, wav_file);
     fwrite(data_i.samples, sizeof(u8), data_size_bytes, wav_file);
 
-    return true;
+    return 0;
 }
 
 wav_fmt_chunk_t make_wav_fmt_chunk(u32 num_channels, u32 sample_rate, u16 bits_per_sample) {
@@ -115,7 +122,7 @@ void wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o ,u16 *channel_cou
                                     align_up_memoryn);
 
     if (!data.samples) {
-        perror("Failed to load data.");
+        log_error("Failed to load data.");
         goto failed;
     }
 
@@ -150,7 +157,7 @@ void wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o ,u16 *channel_cou
                                             align_up_memoryn);
                         break;
                     default:
-                        perror("Only PCM integer 8,16,24 bits data can be read.");
+                        log_error("Only PCM integer 8,16,24 bits data can be read.");
                         goto failed;
                 }
                 break;
@@ -164,12 +171,12 @@ void wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o ,u16 *channel_cou
                                                   align_up_memoryn);
                         break;
                     default:
-                        perror("Only 32 bits float data can be read.");
+                        log_error("Only 32 bits float data can be read.");
                         goto failed;
                 }
                 break;
             default:
-                perror("Expected audio_format=1|3");
+                log_error("Expected audio_format=1|3");
                 goto failed;
         }
         (*samples_o)[c] = d;
@@ -178,6 +185,12 @@ void wav_load(smrt_arena_t *arena, FILE *wav, f64 ***samples_o ,u16 *channel_cou
     smrta_scratch_end(scratch);
     *sample_count_o = data.sample_count;
     *sample_rate_o = f.sample_rate;
+
+    #ifndef NLOG_TRACE
+        log_trace("Loaded wav file; %lu samples, %duhz, %du channels",
+                  data.sample_count, f.sample_rate, f.num_channels);
+    #endif /* ifndef NLOG_TRACE */
+
     return;
 
 failed:
@@ -186,6 +199,7 @@ failed:
     *samples_o = NULL;
     *sample_count_o = 0;
     *sample_rate_o = 0;
+    *channel_count_o = 0;
     return;
 }
 
@@ -193,7 +207,10 @@ f64 *read_8bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16 
     assert(num_channels != 0 && "num_channels must be >0");
 
     f64 *vs = smrt_arena_push(arena, ALIGN_UP_POW2(sizeof(f64) * data.sample_count, align_up_memoryn), true);
-    if (!vs) return NULL;
+    if (!vs) {
+        log_error("Failed to allocate values");
+        return NULL;
+    }
 
     for (u64 i = 0; i < data.sample_count; i++) {
         u8 sample = data.samples[(i*num_channels)+  channel];
@@ -209,7 +226,10 @@ f64 *read_16bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16
     assert(num_channels != 0 && "num_channels must be >0");
 
     f64 *vs = smrt_arena_push(arena, ALIGN_UP_POW2(sizeof(f64) * data.sample_count, align_up_memoryn), true);
-    if (!vs) return NULL;
+    if (!vs) {
+        log_error("Failed to allocate values");
+        return NULL;
+    }
 
     for (u64 i = 0; i < data.sample_count; i++) {
         u8  low = data.samples[(i*2*num_channels)+  channel*2];
@@ -227,7 +247,10 @@ f64 *read_24bps_data(smrt_arena_t *arena, wav_data_t data, u16 num_channels, u16
     assert(num_channels != 0 && "num_channels must be >0");
 
     f64 *vs = smrt_arena_push(arena, ALIGN_UP_POW2(sizeof(f64) * data.sample_count, align_up_memoryn), true);
-    if (!vs) return NULL;
+    if (!vs) {
+        log_error("Failed to allocate values");
+        return NULL;
+    }
 
     for (u64 i = 0; i < data.sample_count; i++) {
         u8  low = data.samples[(i*3*num_channels)+  channel*3];
@@ -247,7 +270,10 @@ f64 *read_32bps_float_data(smrt_arena_t *arena, wav_data_t data, u16 num_channel
     assert(num_channels != 0 && "num_channels must be >0");
 
     f64 *vs = smrt_arena_push(arena, ALIGN_UP_POW2(sizeof(f64) * data.sample_count, align_up_memoryn), true);
-    if (!vs) return NULL;
+    if (!vs) {
+        log_error("Failed to allocate values");
+        return NULL;
+    }
 
     for (u64 i = 0; i < data.sample_count; i++) {
         u8   one = data.samples[(i*4*num_channels)+  channel*4];

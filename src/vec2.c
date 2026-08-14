@@ -1,5 +1,5 @@
-#include "vec2.h"
 #include "common.h"
+#include "vec2.h"
 
 #include <assert.h>
 #include <math.h>

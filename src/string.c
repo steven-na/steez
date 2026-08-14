@@ -1,13 +1,15 @@
 #include "common.h"
 #include "smrt_arena.h"
-#include <string.h>
-
+#include "log.h"
 #include "string.h"
+
+#include <string.h>
 
 strng_t *strng_new(smrt_arena_t *arena, u64 size) {
     strng_t *s = smrt_arena_push(arena, sizeof(strng_t) + size, true);
 
     if (!s) {
+        log_error("Failed to allocate strng");
         return NULL;
     }
 
@@ -21,6 +23,7 @@ strng_t *strng_from(smrt_arena_t *arena, char const *c) {
     strng_t *s = strng_new(arena, size);
 
     if (!s) {
+        log_error("Failed to allocate strng");
         return NULL;
     }
 
@@ -36,6 +39,7 @@ strng_t *strng_dup(smrt_arena_t *arena, strng_t const *src) {
     strng_t *string = smrt_arena_push(arena, size, true);
 
     if (!string) {
+        log_error("Failed to allocate strng");
         return NULL;
     }
 
@@ -51,6 +55,7 @@ char *strng_str(smrt_arena_t *arena, strng_t const *string) {
     char *s = SMRTA_ALLOC_ARRAY(arena, char, string->len+1);
 
     if (!s) {
+        log_error("Failed to allocate char*");
         return NULL;
     } else if (string->len == 0) {
         return s;
@@ -61,17 +66,15 @@ char *strng_str(smrt_arena_t *arena, strng_t const *string) {
     return s;
 }
 
-b32 strng_set(strng_t *string, char const *c) {
+i32 strng_set(strng_t *string, char const *c) {
     u64 size = strlen(c);
 
-    if (string->alloc_size < size) {
-        return false;
-    }
+    if (string->alloc_size < size) return -1;
 
     memcpy((u8*)string+STRNG_BASE_POS, c, size);
     string->len = size;
 
-    return true;
+    return 0;
 }
 
 void strng_clear(strng_t *string) {

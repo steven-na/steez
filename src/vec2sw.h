@@ -5,6 +5,7 @@
 #include "vec2.h"
 #include "slidingwindow.h"
 
+// Vec2d sliding window
 typedef struct {
     sliding_window_array_t  *xs;
     sliding_window_array_t  *ys;

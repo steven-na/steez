@@ -5,6 +5,7 @@
 
 #define SLIDING_WINDOW_BASE_POS (sizeof(sliding_window_array_t))
 
+// Data structure that allows infinite inserts allowing access to the last 'size' elements
 typedef struct {
      u64               size;
      u64       num_elements;

@@ -8,43 +8,43 @@
 
 dft_data_t discrete_fourier_transform(smrt_arena_t *arena, f64 *samples, u64 sample_count, u64 sample_rate) {
     u64 freq_count = (sample_count / 2) + 1;
-        f64  freq_step = (f64)sample_rate / (f64)sample_count;
+    f64  freq_step = (f64)sample_rate / (f64)sample_count;
 
-        dft_data_t d = {.freq_count = freq_count};
-        d.frequencies = SMRTA_ALLOC_ARRAY(arena, f64, freq_count);
-         d.amplitudes = SMRTA_ALLOC_ARRAY(arena, f64, freq_count);
-             d.phases = SMRTA_ALLOC_ARRAY(arena, f64, freq_count);
+    dft_data_t d = {.freq_count = freq_count};
+    d.frequencies = SMRTA_ALLOC_ARRAY(arena, f64, freq_count);
+     d.amplitudes = SMRTA_ALLOC_ARRAY(arena, f64, freq_count);
+         d.phases = SMRTA_ALLOC_ARRAY(arena, f64, freq_count);
 
-        for (u64 freq_index = 0; freq_index < freq_count; freq_index++) {
-            smrta_temp_t scratch = smrta_scratch_start(NULL, 0);
+    for (u64 freq_index = 0; freq_index < freq_count; freq_index++) {
+        smrta_temp_t scratch = smrta_scratch_start(NULL, 0);
 
-            vec2d_soa_t vs;
-            vs.xs = SMRTA_ALLOC_ARRAY(scratch.arena, f64, sample_count);
-            vs.ys = SMRTA_ALLOC_ARRAY(scratch.arena, f64, sample_count);
-            vs.size = sample_count;
+        vec2d_soa_t vs;
+        vs.xs = SMRTA_ALLOC_ARRAY(scratch.arena, f64, sample_count);
+        vs.ys = SMRTA_ALLOC_ARRAY(scratch.arena, f64, sample_count);
+        vs.size = sample_count;
 
-            if (!vs.xs || !vs.ys) { smrta_scratch_end(scratch); return (dft_data_t){ 0 }; }
+        if (!vs.xs || !vs.ys) { smrta_scratch_end(scratch); return (dft_data_t){ 0 }; }
 
-            for (u64 i = 0; i < sample_count; i++) {
-                f64 angle = i / (f64)sample_count * PI * 2.0 * freq_index;
+        for (u64 i = 0; i < sample_count; i++) {
+            f64 angle = i / (f64)sample_count * PI * 2.0 * freq_index;
 
-                vs.xs[i] = cos(angle) * samples[i];
-                vs.ys[i] = sin(angle) * samples[i];
-            }
-
-            vec2d_t average_pos = vec2d_soa_average(&vs);
-            smrta_scratch_end(scratch);
-
-            b8 is_zero_hz = freq_index == 0;
-            b8 is_nyquist = freq_index == freq_count - 1 && sample_count % 2 == 0;
-            f64 amp_coeff = is_zero_hz || is_nyquist ? 1.0 : 2.0;
-
-            d.frequencies[freq_index] = freq_index * freq_step;
-             d.amplitudes[freq_index] = vec2d_length(average_pos) * amp_coeff;
-                 d.phases[freq_index] = -atan2(average_pos.y, average_pos.x);
-
+            vs.xs[i] = cos(angle) * samples[i];
+            vs.ys[i] = sin(angle) * samples[i];
         }
-        return d;
+
+        vec2d_t average_pos = vec2d_soa_average(&vs);
+        smrta_scratch_end(scratch);
+
+        b8 is_zero_hz = freq_index == 0;
+        b8 is_nyquist = freq_index == freq_count - 1 && sample_count % 2 == 0;
+        f64 amp_coeff = is_zero_hz || is_nyquist ? 1.0 : 2.0;
+
+        d.frequencies[freq_index] = freq_index * freq_step;
+         d.amplitudes[freq_index] = vec2d_length(average_pos) * amp_coeff;
+             d.phases[freq_index] = -atan2(average_pos.y, average_pos.x);
+
+    }
+    return d;
 }
 
 static inline f64 hann_window(u64 i, u64 n) {

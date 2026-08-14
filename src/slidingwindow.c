@@ -1,6 +1,7 @@
 #include "slidingwindow.h"
 #include "common.h"
 #include "smrt_arena.h"
+#include "log.h"
 
 #include <string.h>
 
@@ -8,6 +9,10 @@ sliding_window_array_t *sw_create(smrt_arena_t *arena, u64 elem_size, u64 size) 
     sliding_window_array_t *sw = smrt_arena_push(arena, sizeof(sliding_window_array_t) + 2 * elem_size * size, true);
     sw->size = size;
     sw->element_size_bytes = elem_size;
+
+    #ifndef NLOG_TRACE
+        log_trace("Created sliding window; elem size %lu, capacity %lu", elem_size, size);
+    #endif /* ifndef NLOG_TRACE */
 
     return sw;
 }

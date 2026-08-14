@@ -6,6 +6,7 @@
 
 #include "common.h"
 #include "smrt_arena.h"
+#include "log.h"
 
 #include <string.h>
 
@@ -20,6 +21,7 @@ smrt_arena_t *smrt_arena_create(u64 reserve_size, u64 commit_size, b32 auto_deco
     smrt_arena_t *arena = plat_mem_reserve(reserve_size);
 
     if (!plat_mem_commit(arena, commit_size)) {
+        log_error("Failed to acquire virtual memory for smrt_arena");
         return NULL;
     }
 
@@ -29,6 +31,11 @@ smrt_arena_t *smrt_arena_create(u64 reserve_size, u64 commit_size, b32 auto_deco
              arena->pos = SMRT_ARENA_BASE_POS;
         arena->mark_pos = 0;
     arena->auto_decommit = auto_decommit;
+
+    #ifndef NLOG_TRACE
+        log_trace("Created smrt_arena; Total %lu bytes, Commit size %lu bytes",
+                  reserve_size, commit_size);
+    #endif /* ifndef NLOG_TRACE */
 
     return arena;
 
@@ -58,7 +65,10 @@ void *smrt_arena_push(smrt_arena_t *arena, u64 alloc_amount, b32 zero_out) {
     u64 pos_aligned = ALIGN_UP_POW2(arena->pos, ARENA_ALIGN);
     u64     new_pos = pos_aligned + alloc_amount;
 
-    if (new_pos > arena->reserve_size) { return NULL; }
+    if (new_pos > arena->reserve_size) {
+        log_warn("Allocation on smrt_arena exceeds reserve size");
+        return NULL;
+    }
 
     if (new_pos > arena->commit_pos) {
         u64 new_commit_pos = new_pos;
@@ -70,6 +80,7 @@ void *smrt_arena_push(smrt_arena_t *arena, u64 alloc_amount, b32 zero_out) {
         u64 commit_size = new_commit_pos - arena->commit_pos;
 
         if (!plat_mem_commit(mem, commit_size)) {
+            log_error("Failed to commit smrt_arena virtual memory");
             return NULL;
         }
 
@@ -111,14 +122,15 @@ void smrt_arena_pop_to(smrt_arena_t *arena, u64 pos) {
     smrt_arena_pop(arena, size);
 }
 
-b32 smrt_arena_pop_to_mark(smrt_arena_t *arena) {
+i32 smrt_arena_pop_to_mark(smrt_arena_t *arena) {
     if (arena->mark_pos == 0) {
-        return false;
+        log_debug("Tried to pop to mark but no mark was set");
+        return -1;
     }
 
     smrt_arena_pop_to(arena, arena->mark_pos);
 
-    return true;
+    return 0;
 }
 
 void smrt_arena_clear(smrt_arena_t *arena, b32 zero_out) {
@@ -137,9 +149,17 @@ void smrt_arena_mark(smrt_arena_t *arena) {
 
 void smrt_arena_destroy(smrt_arena_t *arena) {
     plat_mem_release(arena, arena->reserve_size);
+
+    #ifndef NLOG_TRACE
+        log_trace("Destroyed smrt_arena");
+    #endif /* ifndef NLOG_TRACE */
 }
 
 smrta_temp_t smrta_temp_start(smrt_arena_t *arena) {
+    #ifndef NLOG_TRACE
+        log_trace("Starting temp arena");
+    #endif /* ifndef NLOG_TRACE */
+
     return (smrta_temp_t){
             .arena=arena,
         .start_pos=arena->pos
@@ -148,6 +168,9 @@ smrta_temp_t smrta_temp_start(smrt_arena_t *arena) {
 
 void smrta_temp_end(smrta_temp_t temp) {
     smrt_arena_pop_to(temp.arena, temp.start_pos);
+    #ifndef NLOG_TRACE
+        log_trace("Ending temp arena");
+    #endif /* ifndef NLOG_TRACE */
 }
 
 smrta_temp_t smrta_scratch_start(smrt_arena_t **conflicts, u32 num_conflicts) {
@@ -226,6 +249,7 @@ u32 plat_get_pagesize(void) {
 void* plat_mem_reserve(u64 size) {
     void* out = mmap(NULL, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (out == MAP_FAILED) {
+        log_error("Failed to reserve virtual memory");
         return NULL;
     }
     return out;

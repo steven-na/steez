@@ -22,7 +22,7 @@ typedef struct {
 ez_deque_t *ez_deque_create(smrt_arena_t *arena, u64 elem_size, u64 size);
 
 // Returns false if queue can't hold elem.
-       b32 ez_deque_enqueue(ez_deque_t *q, void *elem);
+       i32 ez_deque_enqueue(ez_deque_t *q, void *elem);
 // Returns deque backed memory. Copy if needed.
       void *   ez_deque_pop(ez_deque_t *q);
 
@@ -38,6 +38,6 @@ ts_deque_t   ts_deque_create(smrt_arena_t *arena, ez_deque_t * q);
       void  ts_deque_destroy(ts_deque_t tsq);
 
 // Deal with re-enqueueing yourself
-       b32  ts_deque_enqueue(ts_deque_t tsq ,
+       i32  ts_deque_enqueue(ts_deque_t tsq ,
                                  void *elem);
       void *    ts_deque_pop(ts_deque_t tsq);

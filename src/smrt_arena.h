@@ -22,7 +22,7 @@ smrt_arena_t *    smrt_arena_create(u64 reserve_size, u64 commit_size, b32 auto_
         void     smrt_arena_destroy(smrt_arena_t *arena);
         void        smrt_arena_mark(smrt_arena_t *arena);
         void * smrt_arena_mark_push(smrt_arena_t *arena, u64 alloc_amount, b32 zero_out);
-         b32 smrt_arena_pop_to_mark(smrt_arena_t *arena);
+         i32 smrt_arena_pop_to_mark(smrt_arena_t *arena);
 
 #define SMRTA_ALLOC_ARRAY(arena, T, n) (T*)smrt_arena_push(arena, sizeof(T) * (n), true)
 
