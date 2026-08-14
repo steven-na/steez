@@ -1,5 +1,4 @@
 // Based on: https://github.com/rxi/log.c/
-
 #pragma once
 
 #include "common.h"
@@ -25,11 +24,15 @@ typedef enum {
 #define log_error(...) log_log(LogLevelError, __FILE__, __LINE__, __VA_ARGS__)
 #define log_fatal(...) log_log(LogLevelFatal, __FILE__, __LINE__, __VA_ARGS__)
 
-const char *log_get_level();
+// If this is not called, logging will have no effect.
+// Most likely pass stdout or stderr
+void log_init(FILE *out);
 
 void log_set_level(LogLevelE lvl);
 void log_set_quiet(b32 quiet);
 void  log_set_lock(log_LockProc proc);
 void    log_set_fp(FILE *log_file);
+
+const char *log_get_level();
 
 void log_log(LogLevelE lvl, const char *src_file, u64 src_line, const char *fmt, ...);

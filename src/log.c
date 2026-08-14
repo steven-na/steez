@@ -8,6 +8,8 @@ static struct {
     log_LockProc lock_proc;
     LogLevelE lvl;
     b32 quiet;
+    b32 inited;
+    FILE *log_default;
     FILE *log_file;
 } L;
 
@@ -27,6 +29,11 @@ const char *log_get_level() {
 
 void log_set_level(LogLevelE lvl) {
     L.lvl = lvl;
+}
+
+void log_init(FILE *out) {
+    L.inited = true;
+    L.log_default = out;
 }
 
 void log_set_quiet(b32 quiet) {
@@ -55,6 +62,8 @@ static inline void write_to_file(LogLevelE lvl, const char *src_file, u64 src_li
 }
 
 void log_log(LogLevelE lvl, const char *src_file, u64 src_line, const char *fmt, ...) {
+    if (!L.inited) return;
+
     lock();
 
     va_list va;
@@ -72,15 +81,15 @@ void log_log(LogLevelE lvl, const char *src_file, u64 src_line, const char *fmt,
     time_str[strftime(time_str, sizeof(time_str), "%H:%M:%S", time)] = '\0';
 
 #ifndef LOG_NO_COLOR
-    fprintf(stdout, "%s %s%-5s\x1b[0m\x1b[90m%s:%lu:\x1b[0m ",
+    fprintf(L.log_default, "%s %s%-5s\x1b[0m\x1b[90m%s:%lu:\x1b[0m ",
         time_str, level_colors[lvl], level_strings[lvl], src_file, src_line);
 #else
-    fprintf(stdout, "%s %-5s %s:%lu: ",
+    fprintf(L.log_default, "%s %-5s %s:%lu: ",
         time_str, level_strings[L.lvl], src_file, src_line);
 #endif /* ifndef LOG_NO_COLOR */
 
-    vfprintf(stdout, fmt, va);
-    fprintf(stdout, "\n");
+    vfprintf(L.log_default, fmt, va);
+    fprintf(L.log_default, "\n");
 
 skip:
     write_to_file(lvl, src_file, src_line, fmt, time, fva);
