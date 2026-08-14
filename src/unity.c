@@ -28,4 +28,5 @@
 
 // Misc
 #include "log.c"
+#include "threadpool.c"
 #include "version.c"
