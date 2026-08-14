@@ -1,11 +1,9 @@
 #include "common.h"
 #include "threadpool.h"
-#include "log.h"
 #include "smrt_arena.h"
 #include "deque.h"
 
 #include <bits/pthreadtypes.h>
-#include <iso646.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <string.h>
@@ -65,14 +63,8 @@ thread_pool_t *tp_create(smrt_arena_t *arena, u64 max_jobs, u64 num_threads) {
     ts_deque_t tsq = ts_deque_create(arena, q);
 
     pthread_t *threads = SMRTA_ALLOC_ARRAY(arena, pthread_t, num_threads);
+    // I just leak this into the arena
     worker_args * args = SMRTA_ALLOC_ARRAY(arena, worker_args, num_threads);
-    for (u64 i = 0; i < num_threads; i++) {
-        args[i] = (worker_args){
-            .id = i,
-            .tp = tp,
-        };
-        pthread_create(&threads[i], NULL, worker_proc, (void*)&args[i]);
-    }
 
     pthread_mutex_t *count_mtx = smrt_arena_push(arena, sizeof(pthread_cond_t), true);
     pthread_mutex_init(count_mtx, NULL);
@@ -91,6 +83,16 @@ thread_pool_t *tp_create(smrt_arena_t *arena, u64 max_jobs, u64 num_threads) {
         .num_alive=0,
         .num_active=0,
     };
+
+    for (u64 i = 0; i < num_threads; i++) {
+        args[i] = (worker_args){
+            .id = i,
+            .tp = tp,
+        };
+        pthread_create(&threads[i], NULL, worker_proc, (void*)&args[i]);
+    }
+
+    while (tp->num_alive != num_threads) {}
 
     return tp;
 }
