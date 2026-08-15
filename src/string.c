@@ -78,6 +78,45 @@ i32 strng_set(strng_t *string, char const *c) {
     return 0;
 }
 
+i32 strng_app(strng_t *dest, strng_t const *source) {
+    u64 slen = source->len;
+    u64 nlen = dest->len + slen;
+    if (nlen > dest->alloc_size) return -1;
+
+    char *dst = STRNG_TO(dest)+dest->len;
+    char const *src = STRNG_TO(source);
+    memcpy(dst, src, slen);
+
+    dest->len = nlen;
+    return nlen;
+}
+
+i32 strng_app_c(strng_t *dest, char const *source) {
+    u64 slen = strlen(source);
+    u64 nlen = dest->len + slen;
+    if (nlen > dest->alloc_size) return -1;
+
+    char *dst = STRNG_TO(dest)+dest->len;
+    char const *src = source;
+    memcpy(dst, src, slen);
+
+    dest->len = nlen;
+    return nlen;
+}
+
+i32 strng_app_v(strng_t *dest, strng_view_t const *source) {
+    u64 slen = source->end - source->start;
+    u64 nlen = dest->len + slen;
+    if (nlen > dest->alloc_size) return -1;
+
+    char *dst = STRNG_TO(dest)+dest->len;
+    char const *src = source->string+source->start;
+    memcpy(dst, src, slen);
+
+    dest->len = nlen;
+    return nlen;
+}
+
 void strng_clear(strng_t *string) {
     memset((u8*)string+STRNG_BASE_POS, 0, string->len);
     string->len = 0;
@@ -90,8 +129,14 @@ strng_view_t sv_from_chars(char const* c) { u64 l = strlen(c);
                                                 .max=l,
                                                 .string=c, }; }
 
-void  sv_trim_left(strng_view_t *sv) { while (sv->start<=  sv->end && isspace(*(sv->string+sv->start)) ) sv->start++; }
-void sv_trim_right(strng_view_t *sv) { while (sv->end  >=sv->start && isspace(*(  sv->string+sv->end)) )   sv->end--; }
+void  sv_trim_left(strng_view_t *sv) {
+    while (sv->start <= sv->end && isspace(*(sv->string+sv->start))) sv->start++;
+    if (sv->start > sv->end) sv->start = sv->end;
+}
+void sv_trim_right(strng_view_t *sv) {
+    while (sv->end >= sv->start && isspace(*(sv->string+sv->end))) sv->end--;
+    if (sv->end < sv->start) sv->end = sv->start;
+}
 void       sv_trim(strng_view_t *sv) { sv_trim_left(sv);
                                       sv_trim_right(sv); }
 
