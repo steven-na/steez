@@ -12,6 +12,8 @@
     - [x] wav
 - [x] Add strng_view
     - want start, end, max_len, char*
+    - [ ] Write all the procs I want
+    - [ ] Test coverage
 - [x] Make status return values consistent. i64, 0 success, -1 fail, >0 info if necessary
     - [x] Deque enqueue (both)
     - [x] smrt_arena_pop_to_mark

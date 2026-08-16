@@ -296,27 +296,27 @@ b32 sv_eq_case_insensitive(strng_view_t const *sv1, strng_view_t const *sv2) {
     char const *restrict c1 = SV_TO(*sv1);
     char const *restrict c2 = SV_TO(*sv2);
 
-    __m256i   Av = _mm256_set1_epi8('A'-1);
-    __m256i   Zv = _mm256_set1_epi8('Z'+1);
-    __m256i subV = _mm256_set1_epi8(0x20);
+    // This subtract 'A' to -128 and underflows <'A'
+    __m256i const subv = _mm256_set1_epi8((char)193);
+    // This is what 'Z' goes to when it is subbed by ^
+    __m256i const cmpv = _mm256_set1_epi8(-103);
+    // The difference between 'A' and 'a' is OR 0x20
+    __m256i const  orv = _mm256_set1_epi8(0x20);
 
     u64 i = 0;
     for (; i + 32 <= len1; i += 32) {
         __m256i v1 = _mm256_loadu_si256((const __m256i*)(c1+i));
         __m256i v2 = _mm256_loadu_si256((const __m256i*)(c2+i));
 
-        // Get chars which are 'A'<=c<='Z'
-        __m256i A1 = _mm256_cmpgt_epi8(v1, Av);
-        __m256i Z1 = _mm256_cmpgt_epi8(v1, Zv);
-        __m256i u1 = _mm256_and_si256(subV, _mm256_andnot_si256(Z1, A1));
-        v1 = _mm256_or_si256(v1, u1);
+        __m256i U1 = _mm256_sub_epi8(v1, subv);
+        U1 = _mm256_cmpgt_epi8(U1, cmpv);
+        U1 = _mm256_andnot_si256(U1, orv);
+        v1 = _mm256_or_si256(v1, U1);
 
-        // Same for v2
-        __m256i A2 = _mm256_cmpgt_epi8(v2, Av);
-        __m256i Z2 = _mm256_cmpgt_epi8(v2, Zv);
-        __m256i u2 =  _mm256_and_si256(subV, _mm256_andnot_si256(Z2, A2));
-        v2 = _mm256_or_si256(v2, u2);
-
+        __m256i U2 = _mm256_sub_epi8(v2, subv);
+        U2 = _mm256_cmpgt_epi8(U2, cmpv);
+        U2 = _mm256_andnot_si256(U2, orv);
+        v2 = _mm256_or_si256(v2, U2);
 
         __m256i cmp = _mm256_cmpeq_epi8(v1, v2);
         u32 mask = _mm256_movemask_epi8(cmp);
