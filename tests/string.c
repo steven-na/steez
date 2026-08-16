@@ -104,7 +104,7 @@ Test(string, set_string_too_large_fails) {
 
     b32 ok = strng_set(s, "way too long for a 4 byte buffer");
 
-    cr_expect_eq(ok, false);
+    cr_expect_eq(ok, -1);
     cr_expect_eq(s->len, 0);
 
     smrt_arena_destroy(arena);

@@ -262,7 +262,7 @@ Test(wav, read_rejects_non_pcm_format, .init = non_pcm_setup, .fini = non_pcm_te
     wav_fmt_chunk_t fmtchunk = make_wav_fmt_chunk(1, 8000, 8);
     fmtchunk.audio_format = 6; // A-law, neither PCM integer (1) nor IEEE float (3)
 
-    cr_assert(write_wav_file(wav_file, &fmtchunk, data));
+    cr_assert(write_wav_file(wav_file, &fmtchunk, data) == 0);
 
     fclose(wav_file);
 
@@ -303,7 +303,7 @@ Test(wav, write_sine, .init = write_sine_setup, .fini = write_sine_teardown) {
 
     wav_fmt_chunk_t fmtchunk = make_wav_fmt_chunk(1, sample_count, 8);
 
-    cr_assert(write_wav_file(wav_file, &fmtchunk, data));
+    cr_assert(write_wav_file(wav_file, &fmtchunk, data) == 0);
 
     fclose(wav_file);
 
@@ -370,7 +370,7 @@ Test(wav, read_32bps_float_round_trip, .init = float32_wav_setup, .fini = float3
     wav_fmt_chunk_t fmtchunk = make_wav_fmt_chunk(1, 44100, 32);
     fmtchunk.audio_format = 3; // IEEE 754 float
 
-    cr_assert(write_wav_file(wav_file, &fmtchunk, data));
+    cr_assert(write_wav_file(wav_file, &fmtchunk, data) == 0);
 
     fclose(wav_file);
 
@@ -435,7 +435,7 @@ Test(wav, read_24bps_round_trip, .init = pcm24_wav_setup, .fini = pcm24_wav_tear
 
     wav_fmt_chunk_t fmtchunk = make_wav_fmt_chunk(1, 44100, 24);
 
-    cr_assert(write_wav_file(wav_file, &fmtchunk, data));
+    cr_assert(write_wav_file(wav_file, &fmtchunk, data) == 0);
 
     fclose(wav_file);
 

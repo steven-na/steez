@@ -222,7 +222,7 @@ Test(smrt_arena, pop_to_mark_restores_position) {
     b32 popped = smrt_arena_pop_to_mark(arena);
     uint32_t *j = smrt_arena_push(arena, sizeof(uint32_t), true);
 
-    cr_expect_eq(popped, true);
+    cr_expect_eq(popped, 0);
     cr_assert_eq(i, j);
 
     smrt_arena_destroy(arena);
@@ -239,7 +239,7 @@ Test(smrt_arena, mark_at_base_position_is_valid) {
 
     b32 popped = smrt_arena_pop_to_mark(arena);
 
-    cr_expect_eq(popped, true);
+    cr_expect_eq(popped, 0);
     cr_expect_eq(arena->pos, SMRT_ARENA_BASE_POS);
 
     smrt_arena_destroy(arena);
@@ -252,7 +252,7 @@ Test(smrt_arena, pop_to_mark_without_mark_fails) {
 
     b32 popped = smrt_arena_pop_to_mark(arena);
 
-    cr_expect_eq(popped, false);
+    cr_expect_eq(popped, -1);
 
     smrt_arena_destroy(arena);
 }
@@ -342,8 +342,8 @@ Test(smrt_arena, auto_decommit_pop_past_mark_resets_mark) {
     cr_expect_lt(arena->commit_pos, mark_pos);
     cr_expect_eq(arena->mark_pos, 0);
 
-    b32 popped = smrt_arena_pop_to_mark(arena);
-    cr_expect_eq(popped, false);
+    i32 popped = smrt_arena_pop_to_mark(arena);
+    cr_expect_eq(popped, -1);
 
     smrt_arena_destroy(arena);
 }
