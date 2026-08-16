@@ -1,3 +1,9 @@
+#if defined(__linux__)
+    #ifndef _DEFAULT_SOURCE
+        #define _DEFAULT_SOURCE
+    #endif /* ifndef _DEFAULT_SOURCE */
+#endif
+
 #include "common.h"
 #include "threadpool.h"
 #include "smrt_arena.h"
@@ -5,8 +11,11 @@
 #include "log.h"
 
 #include <bits/pthreadtypes.h>
+#include <bits/time.h>
 #include <pthread.h>
 #include <string.h>
+#include <time.h>
+#include <asm-generic/errno.h>
 
 typedef struct {
     tp_job_proc  proc;
@@ -27,22 +36,28 @@ void *worker_proc(void *args) {
     #endif /* ifndef NLOG_TRACE */
 
     // Signal to tp_create that threads are done spinning up
-    pthread_mutex_lock(tp->count_mtx); {
+    pthread_mutex_lock(tp->access_mtx); {
         if (++(tp->num_alive) == tp->num_threads) {
             pthread_cond_broadcast(tp->done_signal);
         }
-    } pthread_mutex_unlock(tp->count_mtx);
+    } pthread_mutex_unlock(tp->access_mtx);
 
     for (;;) {
         tp_job_t *j = (tp_job_t*)ts_deque_pop(tp->jobs);
 
-        pthread_mutex_lock(tp->count_mtx);
+        pthread_mutex_lock(tp->access_mtx);
         tp->num_active++;
-        pthread_mutex_unlock(tp->count_mtx);
+        pthread_mutex_unlock(tp->access_mtx);
 
         j->proc(j->args);
 
-        pthread_mutex_lock(tp->count_mtx);
+        pthread_mutex_lock(tp->access_mtx);
+
+        if (tp->is_abandoned) {
+            pthread_mutex_unlock(tp->access_mtx);
+            return NULL;
+        }
+
         // If this is the last active thread finishing, tell someone about it
         if (--(tp->num_active) == 0) {
             pthread_cond_broadcast(tp->done_signal);
@@ -53,21 +68,21 @@ void *worker_proc(void *args) {
         }
 
         if (!tp->is_running) {
-            pthread_mutex_unlock(tp->count_mtx);
+            pthread_mutex_unlock(tp->access_mtx);
             break;
         }
-        pthread_mutex_unlock(tp->count_mtx);
+        pthread_mutex_unlock(tp->access_mtx);
     }
 
     #ifndef NLOG_TRACE
         log_trace("Spinning down thread %lu", w_args->id);
     #endif /* ifndef NLOG_TRACE */
 
-    pthread_mutex_lock(tp->count_mtx); {
+    pthread_mutex_lock(tp->access_mtx); {
         if (--(tp->num_alive) == 0) {
             pthread_cond_broadcast(tp->done_signal);
         }
-    } pthread_mutex_unlock(tp->count_mtx);
+    } pthread_mutex_unlock(tp->access_mtx);
 
     return NULL;
 }
@@ -94,13 +109,13 @@ thread_pool_t *tp_create(smrt_arena_t *arena, u64 max_jobs, u64 num_threads) {
         .jobs=tsq,
         .is_running=true,
 
-        .count_mtx=count_mtx,
+        .access_mtx=count_mtx,
         .done_signal=all_done,
         .num_alive=0,
         .num_active=0,
     };
 
-    pthread_mutex_lock(tp->count_mtx);
+    pthread_mutex_lock(tp->access_mtx);
     for (u64 i = 0; i < num_threads; i++) {
         args[i] = (worker_args){
             .id = i,
@@ -110,9 +125,9 @@ thread_pool_t *tp_create(smrt_arena_t *arena, u64 max_jobs, u64 num_threads) {
     }
 
     while (tp->num_alive != num_threads) {
-        pthread_cond_wait(tp->done_signal, tp->count_mtx);
+        pthread_cond_wait(tp->done_signal, tp->access_mtx);
     }
-    pthread_mutex_unlock(tp->count_mtx);
+    pthread_mutex_unlock(tp->access_mtx);
 
 
     #ifndef NLOG_TRACE
@@ -124,33 +139,54 @@ thread_pool_t *tp_create(smrt_arena_t *arena, u64 max_jobs, u64 num_threads) {
 
 void no_op(void *nothing) { (void)nothing; }
 
-i32 tp_destroy(thread_pool_t *tp) {
+i32 tp_destroy(thread_pool_t *tp, i32 timeout) {
     #ifndef NLOG_TRACE
         log_trace("Destroying threadpool");
     #endif /* ifndef NLOG_TRACE */
 
-    pthread_mutex_lock(tp->count_mtx);
+    pthread_mutex_lock(tp->access_mtx);
     tp->is_running = false;
+
+    b32 timeout_enable = timeout != INT32_MAX;
+    struct timespec deadline;
+    if (timeout_enable) {
+        clock_gettime(CLOCK_REALTIME, &deadline);
+        deadline.tv_sec += 5;
+    }
 
     // Hand out Kool Aid
     u64 pills = tp->num_alive;
     for (u64 i = 0; i < pills; i++) tp_push_job(tp, no_op, NULL);
+
     while (tp->num_alive != 0) {
-        pthread_cond_wait(tp->done_signal, tp->count_mtx);
+        if (timeout_enable) {
+            if (pthread_cond_timedwait(tp->done_signal,
+                                       tp->access_mtx,
+                                       &deadline) == ETIMEDOUT)
+                              { goto abandon; }
+        }      /* Don't destroy infrastructure if abandoning */
+        else {
+            pthread_cond_wait(tp->done_signal, tp->access_mtx);
+        }
     }
 
-    for (u64 t = 0; t < tp->num_threads; t++) {
-        pthread_join(tp->threads[t], NULL);
-    }
-
-    pthread_mutex_unlock(tp->count_mtx);
+    pthread_mutex_unlock(tp->access_mtx);
+    for (u64 t = 0; t < tp->num_threads; t++) pthread_join(tp->threads[t], NULL);
     ts_deque_destroy(tp->jobs);
-    pthread_mutex_destroy(tp->count_mtx);
+    pthread_mutex_destroy(tp->access_mtx);
     pthread_cond_destroy(tp->done_signal);
     #ifndef NLOG_TRACE
         log_trace("Destroyed threadpool");
     #endif /* ifndef NLOG_TRACE */
     return 0;
+
+abandon:
+    log_error("Threadpool shutdown timed out with %lu threads still alive", tp->num_alive);
+    tp->is_abandoned = true;
+    for (u64 t = 0; t < tp->num_threads; t++) pthread_detach(tp->threads[t]);
+    pthread_mutex_unlock(tp->access_mtx);
+
+    return ETIMEDOUT;
 }
 
 i32 tp_push_job(thread_pool_t *tp, tp_job_proc job, void *args) {
@@ -171,11 +207,11 @@ void tp_wait(thread_pool_t *tp) {
         log_trace("Threadpool waiting for %lu jobs", tp->num_active + tp->jobs.queue->occupied);
     #endif /* ifndef NLOG_TRACE */
 
-    pthread_mutex_lock(tp->count_mtx);
+    pthread_mutex_lock(tp->access_mtx);
     while (tp->jobs.queue->occupied || tp->num_active) {
-        pthread_cond_wait(tp->done_signal, tp->count_mtx);
+        pthread_cond_wait(tp->done_signal, tp->access_mtx);
     }
-    pthread_mutex_unlock(tp->count_mtx);
+    pthread_mutex_unlock(tp->access_mtx);
 
     #ifndef NLOG_TRACE
         log_trace("Threadpool finished waiting");
