@@ -26,17 +26,14 @@ void *worker_proc(void *args) {
         log_trace("Spinning up thread %lu", w_args->id);
     #endif /* ifndef NLOG_TRACE */
 
+    // Signal to tp_create that threads are done spinning up
     pthread_mutex_lock(tp->count_mtx); {
-        tp->num_alive++;
+        if (++(tp->num_alive) == tp->num_threads) {
+            pthread_cond_broadcast(tp->done_signal);
+        }
     } pthread_mutex_unlock(tp->count_mtx);
 
     for (;;) {
-        // if (!tp->is_running) break;
-        if (!w_args->tp->is_running) {
-            break;
-        }
-
-
         tp_job_t *j = (tp_job_t*)ts_deque_pop(tp->jobs);
 
         pthread_mutex_lock(tp->count_mtx);
@@ -46,15 +43,18 @@ void *worker_proc(void *args) {
         j->proc(j->args);
 
         pthread_mutex_lock(tp->count_mtx);
-        tp->num_active--;
         // If this is the last active thread finishing, tell someone about it
-        if (!tp->num_active) {
+        if (--(tp->num_active) == 0) {
             pthread_cond_broadcast(tp->done_signal);
 
         #ifndef NLOG_TRACE
             log_trace("[Thread %lu] Broadcasting complete", w_args->id);
         #endif /* ifndef NLOG_TRACE */
+        }
 
+        if (!tp->is_running) {
+            pthread_mutex_unlock(tp->count_mtx);
+            break;
         }
         pthread_mutex_unlock(tp->count_mtx);
     }
@@ -64,7 +64,9 @@ void *worker_proc(void *args) {
     #endif /* ifndef NLOG_TRACE */
 
     pthread_mutex_lock(tp->count_mtx); {
-        tp->num_alive--;
+        if (--(tp->num_alive) == 0) {
+            pthread_cond_broadcast(tp->done_signal);
+        }
     } pthread_mutex_unlock(tp->count_mtx);
 
     return NULL;
@@ -98,6 +100,7 @@ thread_pool_t *tp_create(smrt_arena_t *arena, u64 max_jobs, u64 num_threads) {
         .num_active=0,
     };
 
+    pthread_mutex_lock(tp->count_mtx);
     for (u64 i = 0; i < num_threads; i++) {
         args[i] = (worker_args){
             .id = i,
@@ -106,7 +109,11 @@ thread_pool_t *tp_create(smrt_arena_t *arena, u64 max_jobs, u64 num_threads) {
         pthread_create(&threads[i], NULL, worker_proc, (void*)&args[i]);
     }
 
-    while (tp->num_alive != num_threads) {}
+    while (tp->num_alive != num_threads) {
+        pthread_cond_wait(tp->done_signal, tp->count_mtx);
+    }
+    pthread_mutex_unlock(tp->count_mtx);
+
 
     #ifndef NLOG_TRACE
         log_trace("Created threadpool; thread count %lu", num_threads);
@@ -122,18 +129,21 @@ i32 tp_destroy(thread_pool_t *tp) {
         log_trace("Destroying threadpool");
     #endif /* ifndef NLOG_TRACE */
 
+    pthread_mutex_lock(tp->count_mtx);
     tp->is_running = false;
-    for (;;) {
-        // TODO: add timeout to skip this if a thread is hung
-        u64 na = 0;
-        pthread_mutex_lock(tp->count_mtx);
-        if ((na = tp->num_alive) == 0) break;
-        pthread_mutex_unlock(tp->count_mtx);
 
-        for (u64 i = 0; i < na; i++) {
-            tp_push_job(tp, no_op, NULL);
-        }
+    // Hand out Kool Aid
+    u64 pills = tp->num_alive;
+    for (u64 i = 0; i < pills; i++) tp_push_job(tp, no_op, NULL);
+    while (tp->num_alive != 0) {
+        pthread_cond_wait(tp->done_signal, tp->count_mtx);
     }
+
+    for (u64 t = 0; t < tp->num_threads; t++) {
+        pthread_join(tp->threads[t], NULL);
+    }
+
+    pthread_mutex_unlock(tp->count_mtx);
     ts_deque_destroy(tp->jobs);
     pthread_mutex_destroy(tp->count_mtx);
     pthread_cond_destroy(tp->done_signal);
