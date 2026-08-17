@@ -166,7 +166,7 @@ void sv_trim_pastc_right(strng_view_t *sv, char n) {
 void sv_trim_end_nextc(strng_view_t *sv, char n) {
     if (sv->start > sv->end) return;
 
-    i32 i = sv_contains_c_simd(sv, n);
+    i32 i = sv_find_char(sv, n);
 
     if (i > -1) {
         if (i == 0) {
@@ -214,7 +214,7 @@ void sv_set_len_right(strng_view_t *sv, u64 n) {
     sv->start = sv->end - n + 1;
 }
 
-i32 sv_contains_simd(strng_view_t const *sv, char const *_needle) {
+i32 sv_find_substr(strng_view_t const *sv, char const *_needle) {
     u64 nlen = strlen(_needle);
     u64 hlen = sv_len(sv);
 
@@ -246,7 +246,7 @@ i32 sv_contains_simd(strng_view_t const *sv, char const *_needle) {
     return -1;
 }
 
-i32 sv_contains_c_simd(strng_view_t const *sv, char n) {
+i32 sv_find_char(strng_view_t const *sv, char n) {
     u64 hlen = sv_len(sv);
 
     char const *restrict haystack = SV_TO(*sv);
@@ -296,7 +296,7 @@ b32 sv_eq_case_insensitive(strng_view_t const *sv1, strng_view_t const *sv2) {
     char const *restrict c1 = SV_TO(*sv1);
     char const *restrict c2 = SV_TO(*sv2);
 
-    // This subtract 'A' to -128 and underflows <'A'
+    // This subtracts 'A' to -128 and underflows <'A'
     __m256i const subv = _mm256_set1_epi8((char)193);
     // This is what 'Z' goes to when it is subbed by ^
     __m256i const cmpv = _mm256_set1_epi8(-103);
@@ -309,16 +309,18 @@ b32 sv_eq_case_insensitive(strng_view_t const *sv1, strng_view_t const *sv2) {
         __m256i v2 = _mm256_loadu_si256((const __m256i*)(c2+i));
 
         __m256i U1 = _mm256_sub_epi8(v1, subv);
-        U1 = _mm256_cmpgt_epi8(U1, cmpv);
-        U1 = _mm256_andnot_si256(U1, orv);
-        v1 = _mm256_or_si256(v1, U1);
-
         __m256i U2 = _mm256_sub_epi8(v2, subv);
+
+        U1 = _mm256_cmpgt_epi8(U1, cmpv);
         U2 = _mm256_cmpgt_epi8(U2, cmpv);
+
+        U1 = _mm256_andnot_si256(U1, orv);
         U2 = _mm256_andnot_si256(U2, orv);
+
+        v1 = _mm256_or_si256(v1, U1);
         v2 = _mm256_or_si256(v2, U2);
 
-        __m256i cmp = _mm256_cmpeq_epi8(v1, v2);
+        __m256i cmp = _mm256_cmpeq_epi64(v1, v2);
         u32 mask = _mm256_movemask_epi8(cmp);
 
         if (mask != 0xFFFFFFFF) return false;
@@ -334,7 +336,7 @@ strng_view_t sv_split_once(strng_view_t *sv, char const *needle) {
     u64 hlen = sv_len(sv);
     if (hlen == 0) return *sv;
 
-    i32 i = sv_contains_simd(sv, needle);
+    i32 i = sv_find_substr(sv, needle);
     if (nlen == 0 || i == -1) {
         strng_view_t out = *sv;
         sv->start = sv->end+1;
@@ -355,7 +357,7 @@ strng_view_t sv_split_once_c(strng_view_t *sv, char n) {
     u64 hlen = sv_len(sv);
     if (hlen == 0) return *sv;
 
-    i32 i = sv_contains_c_simd(sv, n);
+    i32 i = sv_find_char(sv, n);
     if (i == -1) {
         strng_view_t out = *sv;
         sv->start = sv->end+1;

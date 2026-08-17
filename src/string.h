@@ -115,9 +115,9 @@ static inline void sv_reset_right(strng_view_t *sv) {   sv->end = sv->max; }
 static inline void  sv_reset_left(strng_view_t *sv) { sv->start =       0; }
 
 // Returns -1 if not found, otherwise distance from sv->start to beginning of needle
-i32 sv_contains_simd(strng_view_t const *sv, char const *needle);
+i32 sv_find_substr(strng_view_t const *sv, char const *needle);
 // Returns -1 if not found, otherwise distance from sv->start
-i32    sv_contains_c_simd(strng_view_t const *sv, char n);
+i32   sv_find_char(strng_view_t const *sv, char n);
 
 b32   sv_starts_with(strng_view_t const *sv, char const *prefix);
 b32     sv_ends_with(strng_view_t const *sv, char const *suffix);
