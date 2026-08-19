@@ -121,10 +121,10 @@ i32   sv_find_char(strng_view_t const *sv, char n);
 
 b32   sv_starts_with(strng_view_t const *sv, char const *prefix);
 b32     sv_ends_with(strng_view_t const *sv, char const *suffix);
-static inline b32 sv_starts_with_c(strng_view_t sv, char c) { return
-                                                            (sv_len(&sv) > 0) && (*SV_TO(sv) == c); }
-static inline b32   sv_ends_with_c(strng_view_t sv, char c) { return
-                                                            (sv_len(&sv) > 0) && (*(sv.string + sv.end) == c); }
+static inline b32 sv_starts_with_c(strng_view_t const *sv, char c) { return
+                                                            (sv_len(sv) > 0) && (*SV_TO(*sv) == c); }
+static inline b32   sv_ends_with_c(strng_view_t const *sv, char c) { return
+                                                            (sv_len(sv) > 0) && (*(sv->string + sv->end) == c); }
 
 b32 sv_eq_case_insensitive(strng_view_t const *sv1, strng_view_t const *sv2);
 

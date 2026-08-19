@@ -106,12 +106,12 @@ i32 strng_app_c(strng_t *dest, char const *source) {
 }
 
 i32 strng_app_v(strng_t *dest, strng_view_t const *source) {
-    u64 slen = source->end - source->start;
+    u64 slen = sv_len(source);
     u64 nlen = dest->len + slen;
     if (nlen > dest->alloc_size) return -1;
 
     char *dst = STRNG_TO(dest)+dest->len;
-    char const *src = source->string+source->start;
+    char const *src = SV_TO(*source);
     memcpy(dst, src, slen);
 
     dest->len = nlen;

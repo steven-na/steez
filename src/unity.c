@@ -21,6 +21,7 @@
 #include "slidingwindow.c"
 #include "vec2sw.c"
 #include "deque.c"
+#include "map.c"
 
 // DSP/Audio
 #include "wav.c"
