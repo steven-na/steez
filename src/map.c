@@ -1,6 +1,5 @@
 #include "map.h"
 #include "common.h"
-#include "log.h"
 #include "smrt_arena.h"
 
 #include <stdint.h>
@@ -11,7 +10,7 @@
 #define ENTRY_MASK      0b1111111111111111111111111111111111111111111111111111111111111110
 
 typedef struct {
-    void *key;
+    void const *key;
     u64 keylen;
 } map_key_entry_t;
 
@@ -22,7 +21,7 @@ typedef struct _map_t {
     void **values;
 } _map_t;
 
-u32 hash(u8 *input, u64 inputlen) {
+u32 hash(u8 const *input, u64 inputlen) {
     // Make this batched + SIMD eventually
     u32 sum = UINT32_MAX / 2;
     for (u64 i = 0; i < inputlen; i++) {
@@ -33,20 +32,22 @@ u32 hash(u8 *input, u64 inputlen) {
 
 map_t map_create(smrt_arena_t *arena, u64 capacity) {
     map_t map = smrt_arena_push(arena, sizeof(_map_t), true);
-    map->hashes = SMRTA_ALLOC_ARRAY(arena, u64, capacity);
-    map->keys = SMRTA_ALLOC_ARRAY(arena, map_key_entry_t, capacity);
-    map->values = SMRTA_ALLOC_ARRAY(arena, void*, capacity);
-    map->table_size=capacity;
+
+    map->hashes     = SMRTA_ALLOC_ARRAY(arena, u64, capacity);
+    map->keys       = SMRTA_ALLOC_ARRAY(arena, map_key_entry_t, capacity);
+    map->values     = SMRTA_ALLOC_ARRAY(arena, void*, capacity);
+    map->table_size = capacity;
 
     return map;
 }
 
-i32 map_insert(map_t map, u8 *key, u64 keylen, void *value) {
+i32 map_insert(map_t const map, u8 const *key, u64 keylen, void *value) {
     u64 h = hash(key, keylen) & ENTRY_MASK;
 
     u64 start = h % map->table_size;
     i64 first_tombstone = -1;
-    for (u64 i = start; i != start - 1; i = (i+1)%map->table_size) {
+    u64 tsize = map->table_size;
+    for (u64 i = start; i != start - 1; i = (i+1)%tsize) {
         // If didnt find match, insert at first tombstone or current i
         if (map->keys[i].key == NULL) {
             if (first_tombstone != -1) i = first_tombstone;
@@ -64,67 +65,66 @@ i32 map_insert(map_t map, u8 *key, u64 keylen, void *value) {
             continue;
         }
 
-        h_cmp &= ENTRY_MASK;
         map_key_entry_t k = map->keys[i];
-        if (k.keylen == keylen &&
-            h == h_cmp         &&
-            memcmp(key, k.key, keylen) != 0)
+        if ((k.keylen == keylen) &&
+            (h == h_cmp        ) &&
+            (memcmp(key, k.key, keylen) == 0))
         {
             map->keys[i].key = key;
             map->values[i] = value;
+            return 0;
         }
     }
 
     return -1;
 }
 
-i32 map_delete(map_t map, u8 *key, u64 keylen) {
+i32 map_delete(map_t const map, u8 const *key, u64 keylen) {
     u64 h = hash(key, keylen) & ENTRY_MASK;
 
     u64 start = h % map->table_size;
-    for (u64 i = start; i != start - 1; i = (i+1)%map->table_size) {
+    u64 tsize = map->table_size;
+    for (u64 i = start; i != start - 1; i = (i+1)%tsize) {
         if (map->keys[i].key == NULL) {
             return -1;
         }
 
         u64 h_cmp = map->hashes[i];
 
-        // if tombstone, skip
         if ((h_cmp & ENTRY_TOMBSTONE) == ENTRY_TOMBSTONE) {
             continue;
         }
 
-        h_cmp &= ENTRY_MASK;
         map_key_entry_t k = map->keys[i];
         if (k.keylen == keylen &&
             h == h_cmp         &&
             memcmp(key, k.key, keylen) == 0)
         {
-             map->keys[i].keylen = 0;
-            *map->hashes &= ENTRY_TOMBSTONE;
+            map->keys[i].keylen = 0;
+            map->hashes[i] = ENTRY_TOMBSTONE;
+            return 0;
         }
     }
 
     return -1;
 }
 
-void *map_lookup(map_t map, u8 *key, u64 keylen) {
+void *map_lookup(map_t const map, u8 const *key, u64 keylen) {
     u64 h = hash(key, keylen) & ENTRY_MASK;
 
     u64 start = h % map->table_size;
-    for (u64 i = start; i != start - 1; i = (i+1)%map->table_size) {
+    u64 tsize = map->table_size;
+    for (u64 i = start; i != start - 1; i = (i+1)%tsize) {
         if (map->keys[i].key == NULL) {
             return NULL;
         }
 
         u64 h_cmp = map->hashes[i];
 
-        // if tombstone, skip
         if ((h_cmp & ENTRY_TOMBSTONE) == ENTRY_TOMBSTONE) {
             continue;
         }
 
-        h_cmp &= ENTRY_MASK;
         map_key_entry_t k = map->keys[i];
         if (k.keylen == keylen &&
             h == h_cmp         &&
@@ -135,16 +135,4 @@ void *map_lookup(map_t map, u8 *key, u64 keylen) {
     }
 
     return NULL;
-}
-
-void map_print(map_t map) {
-    printf("=== MAP ===\n");
-    for (u64 i = 0; i < map->table_size; i++) {
-        if (map->values[i] || (map->hashes[i] & ENTRY_TOMBSTONE) == 1) {
-            printf("%lu %s %lu\n", i, (char*)map->keys[i].key, *(u64*)map->values[i]);
-        } else {
-            printf("%lu\n", i);
-        }
-    }
-    printf("=== END ===\n");
 }
