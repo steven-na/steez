@@ -4,7 +4,9 @@
 #include "smrt_arena.h"
 
 // Hashmap structure that stores u8* keys and void* values.
-// API: map_create, map_insert, map_delete, map_lookoop
+// API: map_create, map_insert, map_delete, map_lookup
+// There is no map_destroy. It is allocated on the arena
+// Uses a5hash to hash keys.
 typedef struct _map_t* map_t;
 
 map_t  map_create(smrt_arena_t *arena, u64 table_size);

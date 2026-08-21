@@ -20,4 +20,4 @@
         - [ ] strng_view_t
     - [ ] thread_pool
     - [ ] vec2sw
-    - [ ] version.c
+    - [ ] hashmap
