@@ -1,10 +1,10 @@
 #include "map.h"
 #include "common.h"
 #include "smrt_arena.h"
+#include "log.h"
 
 #include "../include/a5hash.h"
 
-#include <immintrin.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -33,6 +33,11 @@ map_t map_create(smrt_arena_t *arena, u64 capacity) {
     map->keys       = SMRTA_ALLOC_ARRAY(arena, map_key_entry_t, capacity);
     map->values     = SMRTA_ALLOC_ARRAY(arena, void*, capacity);
     map->table_size = capacity;
+
+    #ifndef NLOG_TRACE
+        log_trace("Created hashmap; Total capacity %lu",
+                  capacity);
+    #endif /* ifndef NLOG_TRACE */
 
     return map;
 }
@@ -73,6 +78,8 @@ i32 map_insert(map_t const map, u8 const *key, u64 keylen, void *value) {
         }
 
     }
+    log_warn("Attempted to insert value with key \"%.*s...\" into hashmap that is full",
+             (i32)MIN(5, keylen), key);
     return -1;
 }
 
@@ -107,7 +114,7 @@ void *map_lookup(map_t const map, u8 const *key, u64 keylen) {
     u64 tsize = map->table_size;
     for (u64 i = start; i != start - 1; i = (i+1)%tsize) {
         u8 h_lookupcmp = map->hashlookup[i];
-        if (h_lookupcmp == ENTRY_EMPTY) return NULL;
+        if (h_lookupcmp == ENTRY_EMPTY) break;
         if (h_lookupcmp == ENTRY_TOMBSTONE) continue;
 
         map_key_entry_t k = map->keys[i];
@@ -115,7 +122,7 @@ void *map_lookup(map_t const map, u8 const *key, u64 keylen) {
             h == map->hashes[i]     &&
             k.keylen == keylen      &&
            (memcmp(key, k.key, keylen) == 0))
-        { return map->values[i]; }
+        {  return map->values[i]; }
     }
 
     return NULL;

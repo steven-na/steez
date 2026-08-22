@@ -1,3 +1,4 @@
+#include <stdint.h>
 #if defined(__linux__)
     #ifndef _DEFAULT_SOURCE
         #define _DEFAULT_SOURCE
@@ -196,7 +197,7 @@ i32 tp_push_job(thread_pool_t *tp, tp_job_proc job, void *args) {
     };
 
     #ifndef NLOG_TRACE
-        log_trace("Pushing job %p with arg %p onto threadpool.", job, args);
+        log_trace("Pushing job 0x%lx with arg %p onto threadpool.", (uintptr_t)job, args);
     #endif /* ifndef NLOG_TRACE */
 
     return ts_deque_enqueue(tp->jobs, &j);

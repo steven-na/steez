@@ -224,10 +224,12 @@ i32 sv_find_substr(strng_view_t const *sv, char const *_needle) {
     char const *restrict haystack = sv->string+sv->start;
     char const *restrict   needle = _needle;
 
-    __m256i first_vec = _mm256_set1_epi8(*needle);
-
     u64 end_idx = hlen - nlen + 1;
     u64 i = 0;
+
+    if (hlen < 32) goto lt_32;
+
+    __m256i first_vec = _mm256_set1_epi8(*needle);
 
     for (; i + 32 <= end_idx; i += 32) {
         __m256i hay_vec = _mm256_loadu_si256((const __m256i*)(haystack+i));
@@ -236,12 +238,13 @@ i32 sv_find_substr(strng_view_t const *sv, char const *_needle) {
 
         while (mask != 0) {
             i32 offset = __builtin_ctz(mask);
-            if (strncmp(haystack+i+offset, needle, nlen) == 0) return i+offset;
+            if (memcmp(haystack+i+offset, needle, nlen) == 0) return i+offset;
             mask &= (mask - 1);
         }
     }
 
-    for (; i < end_idx; i++) { if (strncmp(haystack + i, needle, nlen) == 0) return i; }
+lt_32:
+    for (; i < end_idx; i++) { if (memcmp(haystack + i, needle, nlen) == 0) return i; }
 
     return -1;
 }
@@ -254,9 +257,10 @@ i32 sv_find_char(strng_view_t const *sv, char n) {
     if (hlen == 0) return -1;
     if (hlen == 1 && *haystack == n) return 0;
 
+    u64 i = 0;
+    if (hlen < 32) goto lt_32;
 
     __m256i needle_vec = _mm256_set1_epi8(n);
-    u64 i = 0;
 
     for (; i + 32 <= hlen; i += 32) {
         __m256i hay_vec = _mm256_loadu_si256((const __m256i*)(haystack+i));
@@ -269,6 +273,7 @@ i32 sv_find_char(strng_view_t const *sv, char n) {
         }
     }
 
+lt_32:
     for (; i < hlen; i++) { if (haystack[i] == n) return i; }
 
     return -1;
@@ -320,7 +325,7 @@ b32 sv_eq_case_insensitive(strng_view_t const *sv1, strng_view_t const *sv2) {
         v1 = _mm256_or_si256(v1, U1);
         v2 = _mm256_or_si256(v2, U2);
 
-        __m256i cmp = _mm256_cmpeq_epi64(v1, v2);
+        __m256i cmp = _mm256_cmpeq_epi8(v1, v2);
         u32 mask = _mm256_movemask_epi8(cmp);
 
         if (mask != 0xFFFFFFFF) return false;

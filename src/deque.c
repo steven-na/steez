@@ -65,7 +65,7 @@ ts_deque_t ts_deque_create(smrt_arena_t *arena, ez_deque_t *q) {
     sem_init(s, 0, 0);
 
     #ifndef NLOG_TRACE
-        log_trace("Created thread-safe Deque; queue %p", q);
+        log_trace("Created thread-safe Deque; queue %p", (void*)q);
     #endif /* ifndef NLOG_TRACE */
 
     return (ts_deque_t){

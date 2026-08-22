@@ -35,4 +35,5 @@ void    log_set_fp(FILE *log_file);
 
 const char *log_get_level();
 
+__attribute__((format(printf, 4, 5)))
 void log_log(LogLevelE lvl, const char *src_file, u64 src_line, const char *fmt, ...);
