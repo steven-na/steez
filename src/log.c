@@ -54,7 +54,7 @@ static inline void unlock() { if (L.lock_proc) L.lock_proc(false); }
 static inline void write_to_file(LogLevelE lvl, const char *src_file, u64 src_line, const char *fmt, struct tm* time, va_list va) {
     if (!L.log_file) { return; }
     char time_str[64];
-    time_str[strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", time)] = '\0';
+    strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", time);
 
     fprintf(L.log_file, "%s [%-5s] %s:%lu ", time_str, level_strings[lvl], src_file, src_line);
     vfprintf(L.log_file, fmt, va);
@@ -66,32 +66,37 @@ void log_log(LogLevelE lvl, const char *src_file, u64 src_line, const char *fmt,
 
     lock();
 
+    time_t t = time(NULL);
+    struct tm tm_info;
+    struct tm* time_ptr = localtime_r(&t, &tm_info);
+
+    bool should_log_to_console = !(L.quiet || lvl < L.lvl);
+
     va_list va;
-    va_list fva;
     va_start(va, fmt);
+
+    if (should_log_to_console) {
+        char time_str[16];
+        strftime(time_str, sizeof(time_str), "%H:%M:%S", time_ptr);
+
+#ifndef LOG_NO_COLOR
+        fprintf(L.log_default, "%s %s[%-5s] \x1b[0m\x1b[90m%s:%lu:\x1b[0m ",
+            time_str, level_colors[lvl], level_strings[lvl], src_file, src_line);
+#else
+        fprintf(L.log_default, "%s %-5s %s:%lu: ",
+            time_str, level_strings[L.lvl], src_file, src_line);
+#endif
+
+        vfprintf(L.log_default, fmt, va);
+        fprintf(L.log_default, "\n");
+    }
+
+    va_list fva;
     va_copy(fva, va);
     va_end(va);
 
-    time_t t = time(NULL);
-    struct tm* time = localtime(&t);
+    write_to_file(lvl, src_file, src_line, fmt, time_ptr, fva);
+    va_end(fva);
 
-    if (L.quiet || lvl < L.lvl) { goto skip; }
-
-    char time_str[16];
-    time_str[strftime(time_str, sizeof(time_str), "%H:%M:%S", time)] = '\0';
-
-#ifndef LOG_NO_COLOR
-    fprintf(L.log_default, "%s %s[%-5s] \x1b[0m\x1b[90m%s:%lu:\x1b[0m ",
-        time_str, level_colors[lvl], level_strings[lvl], src_file, src_line);
-#else
-    fprintf(L.log_default, "%s %-5s %s:%lu: ",
-        time_str, level_strings[L.lvl], src_file, src_line);
-#endif /* ifndef LOG_NO_COLOR */
-
-    vfprintf(L.log_default, fmt, va);
-    fprintf(L.log_default, "\n");
-
-skip:
-    write_to_file(lvl, src_file, src_line, fmt, time, fva);
     unlock();
 }

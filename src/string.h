@@ -40,8 +40,8 @@ static inline strng_view_t sv_from(strng_t const *string) {
     return (strng_view_t){
         .string=(char*)((u8*)string+STRNG_BASE_POS),
         .start=0,
-        .end=string->len,
-        .max=string->len,
+        .end=string->len-1,
+        .max=string->len-1,
     };
 }
 

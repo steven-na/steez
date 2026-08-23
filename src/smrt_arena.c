@@ -1,3 +1,4 @@
+#include <stdint.h>
 #if defined(__linux__)
     #ifndef _DEFAULT_SOURCE
         #define _DEFAULT_SOURCE
@@ -33,8 +34,8 @@ smrt_arena_t *smrt_arena_create(u64 reserve_size, u64 commit_size, b32 auto_deco
     arena->auto_decommit = auto_decommit;
 
     #ifndef NLOG_TRACE
-        log_trace("Created smrt_arena; Total %lu bytes, Commit size %lu bytes",
-                  reserve_size, commit_size);
+        log_trace("Created smrt_arena %lu; Total %lu bytes, Commit size %lu bytes",
+                  (uintptr_t)arena, reserve_size, commit_size);
     #endif /* ifndef NLOG_TRACE */
 
     return arena;
@@ -83,6 +84,11 @@ void *smrt_arena_push(smrt_arena_t *arena, u64 alloc_amount, b32 zero_out) {
             log_error("Failed to commit smrt_arena virtual memory");
             return NULL;
         }
+
+        #ifndef NLOG_TRACE
+            log_trace("Committed new memory on arena %lu to size %lu",
+                      (uintptr_t)arena, arena->commit_size);
+        #endif /* ifndef NLOG_TRACE */
 
         arena->commit_pos = new_commit_pos;
     }
@@ -156,9 +162,10 @@ void smrt_arena_destroy(smrt_arena_t *arena) {
 }
 
 smrta_temp_t smrta_temp_start(smrt_arena_t *arena) {
-    #ifndef NLOG_TRACE
-        log_trace("Starting temp arena");
-    #endif /* ifndef NLOG_TRACE */
+        #ifndef NLOG_TRACE
+            log_trace("Starting temp arena %lu at pos %lu", (uintptr_t)arena, arena->pos);
+        #endif /* ifndef NLOG_TRACE */
+
 
     return (smrta_temp_t){
             .arena=arena,
@@ -169,7 +176,7 @@ smrta_temp_t smrta_temp_start(smrt_arena_t *arena) {
 void smrta_temp_end(smrta_temp_t temp) {
     smrt_arena_pop_to(temp.arena, temp.start_pos);
     #ifndef NLOG_TRACE
-        log_trace("Ending temp arena");
+        log_trace("Ending temp arena %lu %lu->%lu", (uintptr_t)temp.arena, temp.start_pos, temp.arena->pos);
     #endif /* ifndef NLOG_TRACE */
 }
 
