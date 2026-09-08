@@ -5,6 +5,7 @@
 
 #include <immintrin.h>
 #include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
 
 strng_t *strng_new(smrt_arena_t *arena, u64 size) {
@@ -79,6 +80,13 @@ i32 strng_set(strng_t *string, char const *c) {
     return 0;
 }
 
+i32 strng_set_ic(strng_t *string, u64 i, char c) {
+    if (i >= string->alloc_size) return -1;
+    if (i >= string->len) string->len = i+1;
+    memset(STRNG_TO(string)+i, c, 1);
+    return 0;
+}
+
 i32 strng_app(strng_t *dest, strng_t const *source) {
     u64 slen = source->len;
     u64 nlen = dest->len + slen;
@@ -121,6 +129,13 @@ i32 strng_app_v(strng_t *dest, strng_view_t const *source) {
 void strng_clear(strng_t *string) {
     memset((u8*)string+STRNG_BASE_POS, 0, string->len);
     string->len = 0;
+}
+
+char *strng_malloc_str(strng_t const *string) {
+    char *s = malloc(string->len);
+    if (!s) return NULL;
+    memcpy(s, STRNG_TO(string), string->len);
+    return s;
 }
 
 strng_view_t sv_from_chars(char const* c) { u64 l = strlen(c);
@@ -214,6 +229,20 @@ void sv_set_len_right(strng_view_t *sv, u64 n) {
     sv->start = sv->end - n + 1;
 }
 
+char sv_get_start(strng_view_t const *sv) {
+    if (sv_len(sv)) {
+        return *(sv->string + sv->start);
+    }
+    return 0;
+}
+
+char sv_get_end(strng_view_t const *sv){
+    if (sv_len(sv)) {
+        return *(sv->string + sv->end);
+    }
+    return 0;
+}
+
 i32 sv_find_substr(strng_view_t const *sv, char const *_needle) {
     u64 nlen = strlen(_needle);
     u64 hlen = sv_len(sv);
@@ -277,6 +306,16 @@ lt_32:
     for (; i < hlen; i++) { if (haystack[i] == n) return i; }
 
     return -1;
+}
+
+u64 sv_count_c(strng_view_t const *sv, char n) {
+    // TODO: simd
+    u64 x = 0;
+    for (u64 i = 0; i < sv_len(sv); i++) {
+        char c = *((u8*)(SV_TO(*sv))+i);
+        if (c == n) x++;
+    }
+    return x;
 }
 
 b32 sv_starts_with(strng_view_t const *sv, char const *prefix) {

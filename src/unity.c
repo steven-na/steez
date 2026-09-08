@@ -17,6 +17,7 @@
 
 // Data structures
 #include "string.c"
+#include "binary.c"
 #include "vec2.c"
 #include "slidingwindow.c"
 #include "vec2sw.c"

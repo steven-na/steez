@@ -17,11 +17,12 @@ typedef struct {
 char const *string;
 } strng_view_t;
 
-strng_t * strng_new(smrt_arena_t *arena, u64 size);
-strng_t *strng_from(smrt_arena_t *arena, char const *c);
-strng_t * strng_dup(smrt_arena_t *arena, strng_t const *src);
-   char * strng_str(smrt_arena_t *arena, strng_t const *string);
-    i32   strng_set(strng_t *string, char const *c);
+strng_t  * strng_new(smrt_arena_t *arena, u64 size);
+strng_t  *strng_from(smrt_arena_t *arena, char const *c);
+strng_t  * strng_dup(smrt_arena_t *arena, strng_t const *src);
+   char  * strng_str(smrt_arena_t *arena, strng_t const *string);
+    i32    strng_set(strng_t *string, char const *c);
+    i32 strng_set_ic(strng_t *string, u64 i, char c);
 // Append to strng, returns -1 if no space, new len otherwise
     i32   strng_app(strng_t *dest, strng_t const *source);
 // Append char* to strng, returns -1 if no space, new len otherwise
@@ -29,6 +30,8 @@ strng_t * strng_dup(smrt_arena_t *arena, strng_t const *src);
 // Append sv to strng, returns -1 if no space, new len otherwise
     i32 strng_app_v(strng_t *dest, strng_view_t const *source);
    void strng_clear(strng_t *string);
+
+char *strng_malloc_str(strng_t const *string);
 
 #define STRNG_TO(s) (char *)((u8*)(s)+STRNG_BASE_POS)
 #define STRNG_FMT(s) (i32)s->len, (char *)((u8*)(s)+STRNG_BASE_POS)
@@ -69,7 +72,7 @@ static inline strng_view_t sv_subv(strng_view_t const *src,
         .max = src->max
     };
 }
-static inline strng_view_t  sv_drop_left(strng_view_t const *src, u64 n) {
+static inline strng_view_t sv_drop_left(strng_view_t const *src, u64 n) {
     u64 src_len = sv_len(src);
     u64 m = MIN(src_len, n);
     return sv_subv(src, m, src_len - m);
@@ -107,6 +110,9 @@ static inline void  sv_pop_right(strng_view_t *sv) { if (sv->end >= sv->start)  
 static inline void sv_popn_left (strng_view_t *sv, u64 n) { for (u64 i = 0; i < n; i++)  sv_pop_left(sv); }
 static inline void sv_popn_right(strng_view_t *sv, u64 n) { for (u64 i = 0; i < n; i++) sv_pop_right(sv); }
 
+char sv_get_start(strng_view_t const *sv);
+char   sv_get_end(strng_view_t const *sv);
+
 static inline void sv_reset(strng_view_t *sv) {
     sv->start=0;
     sv->end = sv->max;
@@ -118,6 +124,9 @@ static inline void  sv_reset_left(strng_view_t *sv) { sv->start =       0; }
 i32 sv_find_substr(strng_view_t const *sv, char const *needle);
 // Returns -1 if not found, otherwise distance from sv->start
 i32   sv_find_char(strng_view_t const *sv, char n);
+
+// Count occurrences of n in sv.
+u64 sv_count_c(strng_view_t const *sv, char n);
 
 b32   sv_starts_with(strng_view_t const *sv, char const *prefix);
 b32     sv_ends_with(strng_view_t const *sv, char const *suffix);

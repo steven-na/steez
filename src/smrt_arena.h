@@ -26,6 +26,9 @@ smrt_arena_t *    smrt_arena_create(u64 reserve_size, u64 commit_size, b32 auto_
 
 #define SMRTA_ALLOC_ARRAY(arena, T, n) (T*)smrt_arena_push(arena, sizeof(T) * (n), true)
 
+#define QUICK_SCRATCH            smrta_scratch_start(NULL, 0)
+#define QUICK_SCRATCH_E(scratch) smrta_scratch_end(scratch)
+
 typedef struct {
     smrt_arena_t *arena;
             u64   start_pos;
