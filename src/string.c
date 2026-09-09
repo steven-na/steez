@@ -138,6 +138,12 @@ char *strng_malloc_str(strng_t const *string) {
     return s;
 }
 
+void strng_map(strng_t *string, char (F)(char c)) {
+    for (u64 i = 0; i < string->len; i++) {
+        strng_set_ic(string, i, F(*(STRNG_TO(string)+i)));
+    }
+}
+
 strng_view_t sv_from_chars(char const* c) { u64 l = strlen(c);
                                             return (strng_view_t){
                                                 .start=0,
@@ -201,6 +207,23 @@ void sv_trim_strt_prvc(strng_view_t *sv, char n) {
             return;
         }
     }
+}
+
+u64 sv_find_from_end_c(strng_view_t const *sv, char n, u64 skip) {
+    if (sv->start > sv->end) return 0;
+
+    u64 i = sv->end;
+    while (i > sv->start) {
+        i--;
+        if (*(sv->string + i) == n) {
+            if (skip) {
+                skip--;
+                continue;
+            }
+            return sv->end - i;
+        }
+    }
+    return sv_len(sv);
 }
 
 void sv_set_len_left(strng_view_t *sv, u64 n) {

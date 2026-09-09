@@ -33,6 +33,9 @@ strng_t  * strng_dup(smrt_arena_t *arena, strng_t const *src);
 
 char *strng_malloc_str(strng_t const *string);
 
+// Applies F to each char in string and updates the value
+void strng_map(strng_t *string, char (F)(char c));
+
 #define STRNG_TO(s) (char *)((u8*)(s)+STRNG_BASE_POS)
 #define STRNG_FMT(s) (i32)s->len, (char *)((u8*)(s)+STRNG_BASE_POS)
 
@@ -98,6 +101,10 @@ void sv_trim_end_nextc(strng_view_t *sv, char n);
 // Starts from end and sets start to the prev char n.
 // Does nothing if there is no prev char n
 void sv_trim_strt_prvc(strng_view_t *sv, char n);
+
+// Goes backwards from end until character n (skipping n `skip` times)
+// and returns the distance from end
+u64 sv_find_from_end_c(strng_view_t const *sv, char n, u64 skip);
 
 // Sets length keeping start
 void sv_set_len_left (strng_view_t *sv, u64 n);
